@@ -1,0 +1,62 @@
+package rules;
+
+import com.ftn.sbnz.model.models.*;
+import com.ftn.sbnz.model.enums.*;
+
+
+
+rule "Stopped vehicle on racing line means high danger"
+when
+    $incident : Incident(
+        type == IncidentType.STOPPED_VEHICLE,
+        position == TrackPosition.RACING_LINE,
+        dangerLevel == null
+    )
+then
+    $incident.setDangerLevel(DangerLevel.HIGH);
+    update($incident);
+end
+
+rule "Low danger activates yellow flag"
+when
+    $incident : Incident(dangerLevel == DangerLevel.LOW)
+    $decision : RaceControlDecision()
+then
+    $decision.setRecommendedFlag(FlagType.YELLOW);
+    $decision.setExplanation("Low danger detected. Local yellow flag is recommended.");
+    update($decision);
+end
+
+rule "Medium danger activates double yellow"
+when
+    $incident : Incident(dangerLevel == DangerLevel.MEDIUM)
+    $decision : RaceControlDecision()
+then
+    $decision.setRecommendedFlag(FlagType.DOUBLE_YELLOW);
+    $decision.setExplanation("Medium danger detected. Double yellow flag is recommended.");
+    update($decision);
+end
+
+rule "High danger with marshals on track activates Safety Car"
+when
+    $incident : Incident(dangerLevel == DangerLevel.HIGH, $sector : sector)
+    TrackSector(this == $sector, marshalsOnTrack == true)
+    $decision : RaceControlDecision()
+then
+    $decision.setSafetyCarStatus(SafetyCarStatus.SAFETY_CAR);
+    $decision.setExplanation("High danger and marshals on track. Safety Car is recommended.");
+    update($decision);
+end
+
+rule "High danger with fully blocked track activates red flag"
+when
+    $incident : Incident(dangerLevel == DangerLevel.HIGH, $sector : sector)
+    TrackSector(this == $sector, blocked == true)
+    $decision : RaceControlDecision()
+then
+    $decision.setRecommendedFlag(FlagType.RED);
+    $decision.setSafetyCarStatus(SafetyCarStatus.NONE);
+    $decision.setExplanation("High danger and fully blocked track. Red flag is recommended.");
+    update($decision);
+end
+
