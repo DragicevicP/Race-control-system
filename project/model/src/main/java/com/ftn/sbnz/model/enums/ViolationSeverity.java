@@ -5,5 +5,6 @@ public enum ViolationSeverity {
     LOW,
     MEDIUM,
     HIGH,
-    VERY_HIGH
+    VERY_HIGH,
+    EXTREME
 }

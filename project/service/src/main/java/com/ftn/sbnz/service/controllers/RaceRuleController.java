@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.ftn.sbnz.model.models.DriverViolation;
 import com.ftn.sbnz.model.models.Incident;
 import com.ftn.sbnz.model.models.RaceControlDecision;
 import com.ftn.sbnz.service.services.RaceRuleService;
@@ -22,5 +23,10 @@ public class RaceRuleController {
     @PostMapping("/incident")
     public RaceControlDecision evaluateIncident(@RequestBody Incident incident) {
         return raceRuleService.evaluateIncident(incident);
+    }
+
+    @PostMapping("/violation-template")
+    public DriverViolation evaluateViolationTemplate(@RequestBody DriverViolation violation) {
+        return raceRuleService.evaluateViolationTemplate(violation);
     }
 }

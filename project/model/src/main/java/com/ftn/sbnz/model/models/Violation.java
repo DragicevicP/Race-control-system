@@ -11,4 +11,12 @@ public class Violation {
     private String description;
     private ViolationSeverity defaultSeverity;
     private PenaltyType defaultPenaltyType;
+
+    public String getCode() {
+        return code;
+    }
+
+    public void setCode(String code) {
+        this.code = code;
+    }
 }

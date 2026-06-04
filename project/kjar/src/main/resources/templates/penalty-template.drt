@@ -1,0 +1,39 @@
+template header
+violationCode
+repeated
+severity
+penaltyType
+seconds
+reason
+
+package templates;
+
+import com.ftn.sbnz.model.models.*;
+import com.ftn.sbnz.model.enums.*;
+
+template "penalty-template"
+
+rule "Penalty_@{row.rowNumber}_@{violationCode}_@{repeated}"
+no-loop true
+when
+    $violation : DriverViolation(
+        violation.code == "@{violationCode}",
+        repeated == @{repeated},
+        penalty == null
+    )
+then
+    Penalty penalty = new Penalty(
+        PenaltyType.@{penaltyType},
+        @{seconds}f,
+        "@{reason}"
+    );
+
+    insert(penalty);
+
+    modify($violation) {
+        setSeverity(ViolationSeverity.@{severity}),
+        setPenalty(penalty)
+    };
+end
+
+end template
