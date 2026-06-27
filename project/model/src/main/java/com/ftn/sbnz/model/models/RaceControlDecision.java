@@ -1,5 +1,6 @@
 package com.ftn.sbnz.model.models;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,18 +17,23 @@ public class RaceControlDecision {
     private Penalty recommendedPenalty;
     private String explanation;
     private List<String> reasons = new ArrayList<>();
+    private boolean applied;
+    private LocalDateTime createdAt;
 
     public RaceControlDecision() {
     }
 
     public RaceControlDecision(FlagType recommendedFlag, SafetyCarStatus safetyCarStatus, RestartStatus restartStatus,
-            Penalty recommendedPenalty, String explanation, List<String> reasons) {
+            Penalty recommendedPenalty, String explanation, List<String> reasons, boolean applied,
+            LocalDateTime createdAt) {
         this.recommendedFlag = recommendedFlag;
         this.safetyCarStatus = safetyCarStatus;
         this.restartStatus = restartStatus;
         this.recommendedPenalty = recommendedPenalty;
         this.explanation = explanation;
         this.reasons = reasons;
+        this.applied = applied;
+        this.createdAt = createdAt;
     }
 
     public FlagType getRecommendedFlag() {
@@ -76,5 +82,21 @@ public class RaceControlDecision {
 
     public void setReasons(List<String> reasons) {
         this.reasons = reasons;
+    }
+
+    public boolean isApplied() {
+        return applied;
+    }
+
+    public void setApplied(boolean applied) {
+        this.applied = applied;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
     }
 }

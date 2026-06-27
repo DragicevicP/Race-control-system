@@ -16,20 +16,28 @@ public class RaceStatus {
     private List<TrackSector> sectors = new ArrayList<>();
     private List<Incident> incidents = new ArrayList<>();
     private List<Driver> drivers = new ArrayList<>();
+    private List<BlueFlagMonitoring> blueFlagMonitorings = new ArrayList<>();
+    private List<VscDeltaMonitoring> vscDeltaMonitorings = new ArrayList<>();
     private RaceControlDecision currentDecision;
+    private List<RaceControlDecision> decisionLog = new ArrayList<>();
 
     public RaceStatus() {
     }
 
     public RaceStatus(Long id, SessionStatus status, TrackStatus trackStatus, List<TrackSector> sectors,
-            List<Incident> incidents, List<Driver> drivers, RaceControlDecision currentDecision) {
+            List<Incident> incidents, List<Driver> drivers, List<BlueFlagMonitoring> blueFlagMonitorings,
+            List<VscDeltaMonitoring> vscDeltaMonitorings, RaceControlDecision currentDecision,
+            List<RaceControlDecision> decisionLog) {
         this.id = id;
         this.status = status;
         this.trackStatus = trackStatus;
         this.sectors = sectors;
         this.incidents = incidents;
         this.drivers = drivers;
+        this.blueFlagMonitorings = blueFlagMonitorings;
+        this.vscDeltaMonitorings = vscDeltaMonitorings;
         this.currentDecision = currentDecision;
+        this.decisionLog = decisionLog;
     }
 
     public Long getId() {
@@ -80,11 +88,35 @@ public class RaceStatus {
         this.drivers = drivers;
     }
 
+    public List<BlueFlagMonitoring> getBlueFlagMonitorings() {
+        return blueFlagMonitorings;
+    }
+
+    public void setBlueFlagMonitorings(List<BlueFlagMonitoring> blueFlagMonitorings) {
+        this.blueFlagMonitorings = blueFlagMonitorings;
+    }
+
+    public List<VscDeltaMonitoring> getVscDeltaMonitorings() {
+        return vscDeltaMonitorings;
+    }
+
+    public void setVscDeltaMonitorings(List<VscDeltaMonitoring> vscDeltaMonitorings) {
+        this.vscDeltaMonitorings = vscDeltaMonitorings;
+    }
+
     public RaceControlDecision getCurrentDecision() {
         return currentDecision;
     }
 
     public void setCurrentDecision(RaceControlDecision currentDecision) {
         this.currentDecision = currentDecision;
+    }
+
+    public List<RaceControlDecision> getDecisionLog() {
+        return decisionLog;
+    }
+
+    public void setDecisionLog(List<RaceControlDecision> decisionLog) {
+        this.decisionLog = decisionLog;
     }
 }

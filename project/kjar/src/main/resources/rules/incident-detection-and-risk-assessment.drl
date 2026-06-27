@@ -1,0 +1,182 @@
+package rules;
+
+import com.ftn.sbnz.model.models.*;
+import com.ftn.sbnz.model.enums.*;
+
+rule "Crash means high danger"
+salience 100
+when
+    $incident : Incident(
+        type == IncidentType.CRASH,
+        dangerLevel == null
+    )
+then
+    modify($incident) {
+        setDangerLevel(DangerLevel.HIGH)
+    }
+end
+
+rule "Incident across multiple sectors means high danger"
+salience 95
+when
+    $incident : Incident(
+        multipleSectors == true,
+        dangerLevel == null
+    )
+then
+    modify($incident) {
+        setDangerLevel(DangerLevel.HIGH)
+    }
+end
+
+rule "Driver left car means high danger"
+salience 90
+when
+    $incident : Incident(
+        driverLeftCar == true,
+        dangerLevel == null
+    )
+then
+    modify($incident) {
+        setDangerLevel(DangerLevel.HIGH)
+    }
+end
+
+rule "Stopped vehicle on racing line means high danger"
+salience 80
+when
+    $incident : Incident(
+        type == IncidentType.STOPPED_VEHICLE,
+        position == TrackPosition.RACING_LINE,
+        dangerLevel == null
+    )
+then
+    modify($incident) {
+        setDangerLevel(DangerLevel.HIGH)
+    }
+end
+
+rule "Debris on racing line means high danger"
+salience 80
+when
+    $incident : Incident(
+        type == IncidentType.DEBRIS,
+        position == TrackPosition.RACING_LINE,
+        dangerLevel == null
+    )
+then
+    modify($incident) {
+        setDangerLevel(DangerLevel.HIGH)
+    }
+end
+
+rule "Fluid leak on racing line means high danger"
+salience 80
+when
+    $incident : Incident(
+        type == IncidentType.FLUID_LEAK,
+        position == TrackPosition.RACING_LINE,
+        dangerLevel == null
+    )
+then
+    modify($incident) {
+        setDangerLevel(DangerLevel.HIGH)
+    }
+end
+
+rule "Stopped vehicle on track edge means medium danger"
+salience 60
+when
+    $incident : Incident(
+        type == IncidentType.STOPPED_VEHICLE,
+        position == TrackPosition.TRACK_EDGE,
+        dangerLevel == null
+    )
+then
+    modify($incident) {
+        setDangerLevel(DangerLevel.MEDIUM)
+    }
+end
+
+rule "Debris on track edge means medium danger"
+salience 60
+when
+    $incident : Incident(
+        type == IncidentType.DEBRIS,
+        position == TrackPosition.TRACK_EDGE,
+        dangerLevel == null
+    )
+then
+    modify($incident) {
+        setDangerLevel(DangerLevel.MEDIUM)
+    }
+end
+
+rule "Fluid leak on track edge means medium danger"
+salience 60
+when
+    $incident : Incident(
+        type == IncidentType.FLUID_LEAK,
+        position == TrackPosition.TRACK_EDGE,
+        dangerLevel == null
+    )
+then
+    modify($incident) {
+        setDangerLevel(DangerLevel.MEDIUM)
+    }
+end
+
+rule "Stopped vehicle off racing line means low danger"
+salience 40
+when
+    $incident : Incident(
+        type == IncidentType.STOPPED_VEHICLE,
+        position == TrackPosition.OFF_RACING_LINE,
+        dangerLevel == null
+    )
+then
+    modify($incident) {
+        setDangerLevel(DangerLevel.LOW)
+    }
+end
+
+rule "Debris off racing line means low danger"
+salience 40
+when
+    $incident : Incident(
+        type == IncidentType.DEBRIS,
+        position == TrackPosition.OFF_RACING_LINE,
+        dangerLevel == null
+    )
+then
+    modify($incident) {
+        setDangerLevel(DangerLevel.LOW)
+    }
+end
+
+rule "Fluid leak off racing line means medium danger"
+salience 40
+when
+    $incident : Incident(
+        type == IncidentType.FLUID_LEAK,
+        position == TrackPosition.OFF_RACING_LINE,
+        dangerLevel == null
+    )
+then
+    modify($incident) {
+        setDangerLevel(DangerLevel.MEDIUM)
+    }
+end
+
+rule "Very bad weather means high danger"
+salience 80
+when
+    $incident : Incident(
+        type == IncidentType.WEATHER,
+        dangerLevel == null
+    )
+then
+    modify($incident) {
+        setDangerLevel(DangerLevel.HIGH)
+    }
+end

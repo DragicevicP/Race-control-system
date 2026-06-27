@@ -10,15 +10,18 @@ public class VscDeltaMonitoring {
     private Driver driver;
     private LocalDateTime vscActivatedAt;
     private DeltaStatus deltaStatus;
+    private LocalDateTime deltaRedSince;
     private boolean active;
 
     public VscDeltaMonitoring() {
     }
 
-    public VscDeltaMonitoring(Driver driver, LocalDateTime vscActivatedAt, DeltaStatus deltaStatus, boolean active) {
+    public VscDeltaMonitoring(Driver driver, LocalDateTime vscActivatedAt, DeltaStatus deltaStatus,
+            LocalDateTime deltaRedSince, boolean active) {
         this.driver = driver;
         this.vscActivatedAt = vscActivatedAt;
         this.deltaStatus = deltaStatus;
+        this.deltaRedSince = deltaRedSince;
         this.active = active;
     }
 
@@ -44,6 +47,14 @@ public class VscDeltaMonitoring {
 
     public void setDeltaStatus(DeltaStatus deltaStatus) {
         this.deltaStatus = deltaStatus;
+    }
+
+    public LocalDateTime getDeltaRedSince() {
+        return deltaRedSince;
+    }
+
+    public void setDeltaRedSince(LocalDateTime deltaRedSince) {
+        this.deltaRedSince = deltaRedSince;
     }
 
     public boolean isActive() {
