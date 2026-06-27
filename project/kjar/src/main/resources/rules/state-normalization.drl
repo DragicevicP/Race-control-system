@@ -1,0 +1,202 @@
+package rules;
+
+import com.ftn.sbnz.model.models.*;
+import com.ftn.sbnz.model.enums.*;
+
+rule "Clear sector is marked green"
+salience 20
+when
+    RaceStatus(
+        trackStatus == TrackStatus.SAFE,
+        currentDecision != null,
+        currentDecision.recommendedFlag == FlagType.GREEN,
+        currentDecision.safetyCarStatus == SafetyCarStatus.NONE
+    )
+    $sector : TrackSector(
+        blocked == false,
+        partiallyBlocked == false,
+        hasDebris == false,
+        hasStoppedVehicle == false,
+        marshalsOnTrack == false,
+        medicalTeamOnTrack == false,
+        activeFlag != FlagType.GREEN
+    )
+then
+    modify($sector) {
+        setActiveFlag(FlagType.GREEN)
+    }
+end
+
+rule "Partially blocked sector marks race status as partially blocked"
+salience 60
+when
+    $raceStatus : RaceStatus(trackStatus != TrackStatus.FULLY_BLOCKED)
+    TrackSector(partiallyBlocked == true)
+then
+    modify($raceStatus) {
+        setTrackStatus(TrackStatus.PARTIALLY_BLOCKED)
+    }
+end
+
+rule "Fully blocked sector marks race status as fully blocked"
+salience 65
+when
+    $raceStatus : RaceStatus()
+    TrackSector(blocked == true)
+then
+    modify($raceStatus) {
+        setTrackStatus(TrackStatus.FULLY_BLOCKED)
+    }
+end
+
+rule "Track is safe when all sectors are clear and incidents are resolved"
+salience 50
+when
+    $raceStatus : RaceStatus(trackStatus != TrackStatus.SAFE)
+    not TrackSector(blocked == true)
+    not TrackSector(partiallyBlocked == true)
+    not TrackSector(hasDebris == true)
+    not TrackSector(hasStoppedVehicle == true)
+    not TrackSector(marshalsOnTrack == true)
+    not TrackSector(medicalTeamOnTrack == true)
+    not Incident(resolved == false)
+then
+    modify($raceStatus) {
+        setTrackStatus(TrackStatus.SAFE)
+    }
+end
+
+rule "Safe track with active VSC recommends green flag"
+salience 40
+when
+    RaceStatus(
+        trackStatus == TrackStatus.SAFE,
+        currentDecision != null,
+        currentDecision.safetyCarStatus == SafetyCarStatus.VSC
+    )
+    $decision : RaceControlDecision(
+        recommendedFlag == null,
+        safetyCarStatus == null
+    )
+then
+    $decision.getReasons().add("Track is safe while VSC is active.");
+    modify($decision) {
+        setRecommendedFlag(FlagType.GREEN),
+        setSafetyCarStatus(SafetyCarStatus.NONE),
+        setRestartStatus(RestartStatus.NONE),
+        setExplanation("Track is safe. VSC can be deactivated and green flag is recommended.")
+    }
+end
+
+rule "Safe track with active Safety Car starts restart procedure"
+salience 40
+when
+    RaceStatus(
+        trackStatus == TrackStatus.SAFE,
+        currentDecision != null,
+        currentDecision.safetyCarStatus == SafetyCarStatus.SAFETY_CAR,
+        currentDecision.restartStatus != RestartStatus.RESTART_PROCEDURE
+    )
+    $decision : RaceControlDecision(
+        recommendedFlag == null,
+        safetyCarStatus == null,
+        restartStatus == null
+    )
+then
+    $decision.getReasons().add("Track is safe while Safety Car is active.");
+    modify($decision) {
+        setSafetyCarStatus(SafetyCarStatus.SAFETY_CAR),
+        setRestartStatus(RestartStatus.RESTART_PROCEDURE),
+        setExplanation("Track is safe. Safety Car restart procedure is recommended.")
+    }
+end
+
+rule "Safe track completes restart procedure"
+salience 35
+when
+    RaceStatus(
+        trackStatus == TrackStatus.SAFE,
+        currentDecision != null,
+        currentDecision.restartStatus == RestartStatus.RESTART_PROCEDURE
+    )
+    $decision : RaceControlDecision(
+        recommendedFlag == null,
+        safetyCarStatus == null,
+        restartStatus == null
+    )
+then
+    $decision.getReasons().add("Track is safe and restart procedure can be completed.");
+    modify($decision) {
+        setRecommendedFlag(FlagType.GREEN),
+        setSafetyCarStatus(SafetyCarStatus.NONE),
+        setRestartStatus(RestartStatus.RACE_RESTARTED),
+        setExplanation("Track is safe and restart procedure is complete. Race restart is recommended.")
+    }
+end
+
+rule "Safe track after yellow flag recommends green flag"
+salience 30
+when
+    RaceStatus(
+        trackStatus == TrackStatus.SAFE,
+        currentDecision != null,
+        currentDecision.recommendedFlag == FlagType.YELLOW,
+        currentDecision.safetyCarStatus == SafetyCarStatus.NONE
+    )
+    $decision : RaceControlDecision(
+        recommendedFlag == null,
+        safetyCarStatus == null
+    )
+then
+    $decision.getReasons().add("Track is safe after yellow flag.");
+    modify($decision) {
+        setRecommendedFlag(FlagType.GREEN),
+        setSafetyCarStatus(SafetyCarStatus.NONE),
+        setRestartStatus(RestartStatus.NONE),
+        setExplanation("Track is safe after yellow flag. Green flag is recommended.")
+    }
+end
+
+rule "Safe track after double yellow flag recommends green flag"
+salience 30
+when
+    RaceStatus(
+        trackStatus == TrackStatus.SAFE,
+        currentDecision != null,
+        currentDecision.recommendedFlag == FlagType.DOUBLE_YELLOW,
+        currentDecision.safetyCarStatus == SafetyCarStatus.NONE
+    )
+    $decision : RaceControlDecision(
+        recommendedFlag == null,
+        safetyCarStatus == null
+    )
+then
+    $decision.getReasons().add("Track is safe after double yellow flag.");
+    modify($decision) {
+        setRecommendedFlag(FlagType.GREEN),
+        setSafetyCarStatus(SafetyCarStatus.NONE),
+        setRestartStatus(RestartStatus.NONE),
+        setExplanation("Track is safe after double yellow flag. Green flag is recommended.")
+    }
+end
+
+rule "Safe track with no current decision recommends green flag"
+salience 25
+when
+    RaceStatus(
+        trackStatus == TrackStatus.SAFE,
+        currentDecision == null
+    )
+    $decision : RaceControlDecision(
+        recommendedFlag == null,
+        safetyCarStatus == null
+    )
+then
+    $decision.getReasons().add("Track is safe and there is no active race control decision.");
+    modify($decision) {
+        setRecommendedFlag(FlagType.GREEN),
+        setSafetyCarStatus(SafetyCarStatus.NONE),
+        setRestartStatus(RestartStatus.NONE),
+        setExplanation("Track is safe. Green flag is recommended.")
+    }
+end
