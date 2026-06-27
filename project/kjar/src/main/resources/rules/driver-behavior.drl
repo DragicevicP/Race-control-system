@@ -1,0 +1,319 @@
+package rules;
+
+import java.time.LocalDateTime;
+
+import com.ftn.sbnz.model.models.*;
+import com.ftn.sbnz.model.enums.*;
+
+rule "Unsafe release creates driver violation"
+salience 100
+when
+    $report : DriverBehaviorReport(
+        processed == false,
+        unsafeRelease == true,
+        $driver : driver
+    )
+then
+    Violation violation = new Violation(
+        "UNSAFE_RELEASE",
+        "Unsafe release",
+        "Driver was released unsafely from the pit lane.",
+        ViolationSeverity.MEDIUM,
+        null
+    );
+    DriverViolation driverViolation = new DriverViolation(null, $driver, violation, ViolationSeverity.MEDIUM, false, null, LocalDateTime.now());
+    $driver.getViolations().add(driverViolation);
+    insert(driverViolation);
+    modify($report) { setProcessed(true) }
+end
+
+rule "Pit speeding creates driver violation"
+salience 95
+when
+    $report : DriverBehaviorReport(
+        processed == false,
+        pitSpeeding == true,
+        $driver : driver
+    )
+then
+    Violation violation = new Violation(
+        "PIT_SPEEDING",
+        "Pit lane speeding",
+        "Driver exceeded the pit lane speed limit.",
+        ViolationSeverity.LOW,
+        null
+    );
+    DriverViolation driverViolation = new DriverViolation(null, $driver, violation, ViolationSeverity.LOW, false, null, LocalDateTime.now());
+    $driver.getViolations().add(driverViolation);
+    insert(driverViolation);
+    modify($report) { setProcessed(true) }
+end
+
+rule "Causing collision creates driver violation"
+salience 90
+when
+    $report : DriverBehaviorReport(
+        processed == false,
+        causingCollision == true,
+        $driver : driver
+    )
+then
+    Violation violation = new Violation(
+        "CAUSING_COLLISION",
+        "Causing a collision",
+        "Driver caused a collision.",
+        ViolationSeverity.MEDIUM,
+        null
+    );
+    DriverViolation driverViolation = new DriverViolation(null, $driver, violation, ViolationSeverity.MEDIUM, false, null, LocalDateTime.now());
+    $driver.getViolations().add(driverViolation);
+    insert(driverViolation);
+    modify($report) { setProcessed(true) }
+end
+
+rule "Dangerous driving creates driver violation"
+salience 85
+when
+    $report : DriverBehaviorReport(
+        processed == false,
+        dangerousDriving == true,
+        $driver : driver
+    )
+then
+    Violation violation = new Violation(
+        "DANGEROUS_DRIVING",
+        "Dangerous driving",
+        "Driver drove in a dangerous manner.",
+        ViolationSeverity.VERY_HIGH,
+        null
+    );
+    DriverViolation driverViolation = new DriverViolation(null, $driver, violation, ViolationSeverity.VERY_HIGH, false, null, LocalDateTime.now());
+    $driver.getViolations().add(driverViolation);
+    insert(driverViolation);
+    modify($report) { setProcessed(true) }
+end
+
+rule "Overtaking under Safety Car creates driver violation"
+salience 80
+when
+    $report : DriverBehaviorReport(
+        processed == false,
+        safetyCarStatus == SafetyCarStatus.SAFETY_CAR,
+        overtook == true,
+        $driver : driver
+    )
+then
+    Violation violation = new Violation(
+        "OVERTAKING_SAFETY_CAR",
+        "Overtaking under Safety Car",
+        "Driver overtook another car while Safety Car was active.",
+        ViolationSeverity.HIGH,
+        null
+    );
+    DriverViolation driverViolation = new DriverViolation(null, $driver, violation, ViolationSeverity.HIGH, false, null, LocalDateTime.now());
+    $driver.getViolations().add(driverViolation);
+    insert(driverViolation);
+    modify($report) { setProcessed(true) }
+end
+
+rule "Safety Car infringement creates driver violation"
+salience 75
+when
+    $report : DriverBehaviorReport(
+        processed == false,
+        safetyCarStatus == SafetyCarStatus.SAFETY_CAR,
+        didNotSlow == true,
+        $driver : driver
+    )
+then
+    Violation violation = new Violation(
+        "SAFETY_CAR_INFRINGEMENT",
+        "Safety Car infringement",
+        "Driver did not respect Safety Car conditions.",
+        ViolationSeverity.HIGH,
+        null
+    );
+    DriverViolation driverViolation = new DriverViolation(null, $driver, violation, ViolationSeverity.HIGH, false, null, LocalDateTime.now());
+    $driver.getViolations().add(driverViolation);
+    insert(driverViolation);
+    modify($report) { setProcessed(true) }
+end
+
+rule "Overtaking under double yellow creates driver violation"
+salience 70
+when
+    $report : DriverBehaviorReport(
+        processed == false,
+        activeFlag == FlagType.DOUBLE_YELLOW,
+        overtook == true,
+        $driver : driver
+    )
+then
+    Violation violation = new Violation(
+        "OVERTAKING_DOUBLE_YELLOW",
+        "Overtaking under double yellow",
+        "Driver overtook another car under double yellow flags.",
+        ViolationSeverity.HIGH,
+        null
+    );
+    DriverViolation driverViolation = new DriverViolation(null, $driver, violation, ViolationSeverity.HIGH, false, null, LocalDateTime.now());
+    $driver.getViolations().add(driverViolation);
+    insert(driverViolation);
+    modify($report) { setProcessed(true) }
+end
+
+rule "Did not slow under double yellow creates driver violation"
+salience 65
+when
+    $report : DriverBehaviorReport(
+        processed == false,
+        activeFlag == FlagType.DOUBLE_YELLOW,
+        didNotSlow == true,
+        $driver : driver
+    )
+then
+    Violation violation = new Violation(
+        "DID_NOT_SLOW_DOUBLE_YELLOW",
+        "Did not slow under double yellow",
+        "Driver did not slow down under double yellow flags.",
+        ViolationSeverity.MEDIUM,
+        null
+    );
+    DriverViolation driverViolation = new DriverViolation(null, $driver, violation, ViolationSeverity.MEDIUM, false, null, LocalDateTime.now());
+    $driver.getViolations().add(driverViolation);
+    insert(driverViolation);
+    modify($report) { setProcessed(true) }
+end
+
+rule "Overtaking under yellow creates driver violation"
+salience 60
+when
+    $report : DriverBehaviorReport(
+        processed == false,
+        activeFlag == FlagType.YELLOW,
+        overtook == true,
+        $driver : driver
+    )
+then
+    Violation violation = new Violation(
+        "OVERTAKING_YELLOW",
+        "Overtaking under yellow",
+        "Driver overtook another car under yellow flags.",
+        ViolationSeverity.MEDIUM,
+        null
+    );
+    DriverViolation driverViolation = new DriverViolation(null, $driver, violation, ViolationSeverity.MEDIUM, false, null, LocalDateTime.now());
+    $driver.getViolations().add(driverViolation);
+    insert(driverViolation);
+    modify($report) { setProcessed(true) }
+end
+
+rule "Did not slow under yellow creates driver violation"
+salience 55
+when
+    $report : DriverBehaviorReport(
+        processed == false,
+        activeFlag == FlagType.YELLOW,
+        didNotSlow == true,
+        $driver : driver
+    )
+then
+    Violation violation = new Violation(
+        "DID_NOT_SLOW_YELLOW",
+        "Did not slow under yellow",
+        "Driver did not slow down under yellow flag.",
+        ViolationSeverity.VERY_LOW,
+        null
+    );
+    DriverViolation driverViolation = new DriverViolation(null, $driver, violation, ViolationSeverity.VERY_LOW, false, null, LocalDateTime.now());
+    $driver.getViolations().add(driverViolation);
+    insert(driverViolation);
+    modify($report) { setProcessed(true) }
+end
+
+rule "Track limits creates driver violation"
+salience 50
+when
+    $report : DriverBehaviorReport(
+        processed == false,
+        trackLimitsCount == 1,
+        $driver : driver
+    )
+then
+    Violation violation = new Violation(
+        "TRACK_LIMITS",
+        "Track limits",
+        "Driver exceeded track limits.",
+        ViolationSeverity.VERY_LOW,
+        null
+    );
+    DriverViolation driverViolation = new DriverViolation(null, $driver, violation, ViolationSeverity.VERY_LOW, false, null, LocalDateTime.now());
+    $driver.getViolations().add(driverViolation);
+    insert(driverViolation);
+    modify($report) { setProcessed(true) }
+end
+
+rule "Second track limits creates driver violation"
+salience 50
+when
+    $report : DriverBehaviorReport(
+        processed == false,
+        trackLimitsCount == 2,
+        $driver : driver
+    )
+then
+    Violation violation = new Violation(
+        "TRACK_LIMITS_X2",
+        "Second track limits",
+        "Driver exceeded track limits for the second time.",
+        ViolationSeverity.LOW,
+        null
+    );
+    DriverViolation driverViolation = new DriverViolation(null, $driver, violation, ViolationSeverity.LOW, false, null, LocalDateTime.now());
+    $driver.getViolations().add(driverViolation);
+    insert(driverViolation);
+    modify($report) { setProcessed(true) }
+end
+
+rule "Third track limits creates driver violation"
+salience 50
+when
+    $report : DriverBehaviorReport(
+        processed == false,
+        trackLimitsCount >= 3,
+        $driver : driver
+    )
+then
+    Violation violation = new Violation(
+        "TRACK_LIMITS_X3",
+        "Third track limits",
+        "Driver exceeded track limits for the third time.",
+        ViolationSeverity.MEDIUM,
+        null
+    );
+    DriverViolation driverViolation = new DriverViolation(null, $driver, violation, ViolationSeverity.MEDIUM, false, null, LocalDateTime.now());
+    $driver.getViolations().add(driverViolation);
+    insert(driverViolation);
+    modify($report) { setProcessed(true) }
+end
+
+rule "Repeated driver violation is marked repeated"
+salience 10
+when
+    $current : DriverViolation(
+        repeated == false,
+        driver != null,
+        violation != null,
+        $driver : driver,
+        $code : violation.code
+    )
+    DriverViolation(
+        this != $current,
+        driver == $driver,
+        violation.code == $code
+    )
+then
+    modify($current) {
+        setRepeated(true)
+    }
+end
