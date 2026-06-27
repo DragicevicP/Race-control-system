@@ -17,6 +17,19 @@ public class RaceControlDecision {
     private String explanation;
     private List<String> reasons = new ArrayList<>();
 
+    public RaceControlDecision() {
+    }
+
+    public RaceControlDecision(FlagType recommendedFlag, SafetyCarStatus safetyCarStatus, RestartStatus restartStatus,
+            Penalty recommendedPenalty, String explanation, List<String> reasons) {
+        this.recommendedFlag = recommendedFlag;
+        this.safetyCarStatus = safetyCarStatus;
+        this.restartStatus = restartStatus;
+        this.recommendedPenalty = recommendedPenalty;
+        this.explanation = explanation;
+        this.reasons = reasons;
+    }
+
     public FlagType getRecommendedFlag() {
         return recommendedFlag;
     }
@@ -33,11 +46,35 @@ public class RaceControlDecision {
         this.safetyCarStatus = safetyCarStatus;
     }
 
+    public RestartStatus getRestartStatus() {
+        return restartStatus;
+    }
+
+    public void setRestartStatus(RestartStatus restartStatus) {
+        this.restartStatus = restartStatus;
+    }
+
+    public Penalty getRecommendedPenalty() {
+        return recommendedPenalty;
+    }
+
+    public void setRecommendedPenalty(Penalty recommendedPenalty) {
+        this.recommendedPenalty = recommendedPenalty;
+    }
+
     public String getExplanation() {
         return explanation;
     }
 
     public void setExplanation(String explanation) {
         this.explanation = explanation;
+    }
+
+    public List<String> getReasons() {
+        return reasons;
+    }
+
+    public void setReasons(List<String> reasons) {
+        this.reasons = reasons;
     }
 }

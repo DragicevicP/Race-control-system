@@ -9,6 +9,9 @@ public class Penalty {
     private Float seconds;
     private String reason;
 
+    public Penalty() {
+    }
+
     public Penalty(PenaltyType type, Float seconds, String reason) {
         this.type = type;
         this.seconds = seconds;
