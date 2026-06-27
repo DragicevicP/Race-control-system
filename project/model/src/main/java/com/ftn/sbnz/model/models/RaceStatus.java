@@ -1,6 +1,7 @@
 package com.ftn.sbnz.model.models;
 
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,6 +21,7 @@ public class RaceStatus {
     private List<VscDeltaMonitoring> vscDeltaMonitorings = new ArrayList<>();
     private RaceControlDecision currentDecision;
     private List<RaceControlDecision> decisionLog = new ArrayList<>();
+    private LocalDateTime simulationTime;
 
     public RaceStatus() {
     }
@@ -27,7 +29,7 @@ public class RaceStatus {
     public RaceStatus(Long id, SessionStatus status, TrackStatus trackStatus, List<TrackSector> sectors,
             List<Incident> incidents, List<Driver> drivers, List<BlueFlagMonitoring> blueFlagMonitorings,
             List<VscDeltaMonitoring> vscDeltaMonitorings, RaceControlDecision currentDecision,
-            List<RaceControlDecision> decisionLog) {
+            List<RaceControlDecision> decisionLog, LocalDateTime simulationTime) {
         this.id = id;
         this.status = status;
         this.trackStatus = trackStatus;
@@ -38,6 +40,7 @@ public class RaceStatus {
         this.vscDeltaMonitorings = vscDeltaMonitorings;
         this.currentDecision = currentDecision;
         this.decisionLog = decisionLog;
+        this.simulationTime = simulationTime;
     }
 
     public Long getId() {
@@ -118,5 +121,13 @@ public class RaceStatus {
 
     public void setDecisionLog(List<RaceControlDecision> decisionLog) {
         this.decisionLog = decisionLog;
+    }
+
+    public LocalDateTime getSimulationTime() {
+        return simulationTime;
+    }
+
+    public void setSimulationTime(LocalDateTime simulationTime) {
+        this.simulationTime = simulationTime;
     }
 }

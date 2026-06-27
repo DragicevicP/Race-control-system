@@ -1,0 +1,107 @@
+package rules;
+
+import java.time.Duration;
+import java.time.LocalDateTime;
+
+import com.ftn.sbnz.model.models.*;
+import com.ftn.sbnz.model.enums.*;
+
+rule "Green VSC delta clears red timer"
+salience 60
+when
+    $monitoring : VscDeltaMonitoring(
+        active == true,
+        deltaStatus == DeltaStatus.GREEN,
+        deltaRedSince != null
+    )
+then
+    modify($monitoring) {
+        setDeltaRedSince(null)
+    }
+end
+
+rule "VSC delta red timeout creates first infringement"
+salience 50
+when
+    RaceStatus($now : simulationTime != null)
+    $monitoring : VscDeltaMonitoring(
+        active == true,
+        deltaStatus == DeltaStatus.RED,
+        deltaRedSince != null,
+        $redSince : deltaRedSince,
+        $driver : driver
+    )
+    eval(Duration.between($redSince, $now).getSeconds() >= 5)
+    not DriverViolation(
+        driver == $driver,
+        violation.code == "VSC_DELTA_INFRINGEMENT"
+    )
+then
+    Violation violation = new Violation(
+        "VSC_DELTA_INFRINGEMENT",
+        "VSC delta infringement",
+        "Driver stayed below the required VSC delta for too long.",
+        ViolationSeverity.HIGH,
+        null
+    );
+
+    DriverViolation driverViolation = new DriverViolation(
+        null,
+        $driver,
+        violation,
+        ViolationSeverity.HIGH,
+        false,
+        null,
+        LocalDateTime.now()
+    );
+
+    $driver.getViolations().add(driverViolation);
+    insert(driverViolation);
+
+    modify($monitoring) {
+        setActive(false)
+    }
+end
+
+rule "VSC delta red timeout creates repeated infringement"
+salience 50
+when
+    RaceStatus($now : simulationTime != null)
+    $monitoring : VscDeltaMonitoring(
+        active == true,
+        deltaStatus == DeltaStatus.RED,
+        deltaRedSince != null,
+        $redSince : deltaRedSince,
+        $driver : driver
+    )
+    eval(Duration.between($redSince, $now).getSeconds() >= 5)
+    DriverViolation(
+        driver == $driver,
+        violation.code == "VSC_DELTA_INFRINGEMENT"
+    )
+then
+    Violation violation = new Violation(
+        "VSC_DELTA_INFRINGEMENT",
+        "Repeated VSC delta infringement",
+        "Driver repeatedly stayed below the required VSC delta for too long.",
+        ViolationSeverity.VERY_HIGH,
+        null
+    );
+
+    DriverViolation driverViolation = new DriverViolation(
+        null,
+        $driver,
+        violation,
+        ViolationSeverity.VERY_HIGH,
+        true,
+        null,
+        LocalDateTime.now()
+    );
+
+    $driver.getViolations().add(driverViolation);
+    insert(driverViolation);
+
+    modify($monitoring) {
+        setActive(false)
+    }
+end
