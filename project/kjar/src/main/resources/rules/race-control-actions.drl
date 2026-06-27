@@ -1,0 +1,240 @@
+package rules;
+
+import com.ftn.sbnz.model.models.*;
+import com.ftn.sbnz.model.enums.*;
+
+rule "Very bad weather activates red flag"
+salience 100
+when
+    $incident : Incident(
+        type == IncidentType.WEATHER,
+        dangerLevel == DangerLevel.HIGH
+    )
+    $decision : RaceControlDecision()
+then
+    $decision.getReasons().add("Very bad weather conditions detected.");
+    modify($decision) {
+        setRecommendedFlag(FlagType.RED),
+        setSafetyCarStatus(SafetyCarStatus.NONE),
+        setExplanation("Very bad weather conditions. Red flag is recommended.")
+    }
+end
+
+rule "Fully blocked track activates red flag"
+salience 100
+when
+    $incident : Incident(dangerLevel == DangerLevel.HIGH, $sector : sector)
+    TrackSector(this == $sector, blocked == true)
+    $decision : RaceControlDecision()
+then
+    $decision.getReasons().add("Track is fully blocked in the affected sector.");
+    modify($decision) {
+        setRecommendedFlag(FlagType.RED),
+        setSafetyCarStatus(SafetyCarStatus.NONE),
+        setExplanation("High danger and fully blocked track. Red flag is recommended.")
+    }
+end
+
+rule "Active Safety Car with fully blocked track escalates to red flag"
+salience 95
+when
+    RaceStatus(
+        currentDecision != null,
+        currentDecision.safetyCarStatus == SafetyCarStatus.SAFETY_CAR
+    )
+    $incident : Incident(dangerLevel == DangerLevel.HIGH, $sector : sector)
+    TrackSector(this == $sector, blocked == true)
+    $decision : RaceControlDecision()
+then
+    $decision.getReasons().add("Safety Car is not enough because the track is fully blocked.");
+    modify($decision) {
+        setRecommendedFlag(FlagType.RED),
+        setSafetyCarStatus(SafetyCarStatus.NONE),
+        setExplanation("Safety Car active and track fully blocked. Red flag is recommended.")
+    }
+end
+
+rule "High danger with medical team on track activates Safety Car"
+salience 80
+when
+    $incident : Incident(
+        dangerLevel == DangerLevel.HIGH,
+        type != IncidentType.WEATHER,
+        $sector : sector
+    )
+    TrackSector(this == $sector, blocked == false, medicalTeamOnTrack == true)
+    $decision : RaceControlDecision(recommendedFlag != FlagType.RED)
+then
+    $decision.getReasons().add("Medical team is on track in a high danger situation.");
+    modify($decision) {
+        setSafetyCarStatus(SafetyCarStatus.SAFETY_CAR),
+        setExplanation("High danger and medical team on track. Safety Car is recommended.")
+    }
+end
+
+rule "High danger with marshals on track activates Safety Car"
+salience 75
+when
+    $incident : Incident(
+        dangerLevel == DangerLevel.HIGH,
+        type != IncidentType.WEATHER,
+        $sector : sector
+    )
+    TrackSector(this == $sector, blocked == false, marshalsOnTrack == true)
+    $decision : RaceControlDecision(recommendedFlag != FlagType.RED)
+then
+    $decision.getReasons().add("Marshals are on track in a high danger situation.");
+    modify($decision) {
+        setSafetyCarStatus(SafetyCarStatus.SAFETY_CAR),
+        setExplanation("High danger and marshals on track. Safety Car is recommended.")
+    }
+end
+
+rule "High danger across multiple sectors activates Safety Car"
+salience 70
+when
+    $incident : Incident(
+        dangerLevel == DangerLevel.HIGH,
+        type != IncidentType.WEATHER,
+        multipleSectors == true
+    )
+    $decision : RaceControlDecision(
+        recommendedFlag != FlagType.RED,
+        safetyCarStatus != SafetyCarStatus.SAFETY_CAR
+    )
+then
+    $decision.getReasons().add("High danger affects multiple sectors.");
+    modify($decision) {
+        setSafetyCarStatus(SafetyCarStatus.SAFETY_CAR),
+        setExplanation("High danger across multiple sectors. Safety Car is recommended.")
+    }
+end
+
+rule "High danger with partially blocked track activates Safety Car"
+salience 65
+when
+    $incident : Incident(
+        dangerLevel == DangerLevel.HIGH,
+        type != IncidentType.WEATHER,
+        $sector : sector
+    )
+    TrackSector(this == $sector, blocked == false, partiallyBlocked == true)
+    $decision : RaceControlDecision(
+        recommendedFlag != FlagType.RED,
+        safetyCarStatus != SafetyCarStatus.SAFETY_CAR
+    )
+then
+    $decision.getReasons().add("Track is partially blocked in a high danger situation.");
+    modify($decision) {
+        setSafetyCarStatus(SafetyCarStatus.SAFETY_CAR),
+        setExplanation("High danger and partially blocked track. Safety Car is recommended.")
+    }
+end
+
+rule "High danger with clear track activates VSC"
+salience 55
+when
+    $incident : Incident(
+        dangerLevel == DangerLevel.HIGH,
+        type != IncidentType.WEATHER,
+        multipleSectors == false,
+        $sector : sector
+    )
+    TrackSector(
+        this == $sector,
+        blocked == false,
+        partiallyBlocked == false,
+        marshalsOnTrack == false,
+        medicalTeamOnTrack == false
+    )
+    $decision : RaceControlDecision(
+        recommendedFlag != FlagType.RED,
+        safetyCarStatus == null
+    )
+then
+    $decision.getReasons().add("High danger detected, but track is not blocked and no personnel are on track.");
+    modify($decision) {
+        setSafetyCarStatus(SafetyCarStatus.VSC),
+        setExplanation("High danger with clear track. VSC is recommended.")
+    }
+end
+
+rule "Double yellow escalates to VSC when danger becomes high"
+salience 50
+when
+    $incident : Incident(
+        dangerLevel == DangerLevel.HIGH,
+        type != IncidentType.WEATHER,
+        $sector : sector
+    )
+    TrackSector(this == $sector, activeFlag == FlagType.DOUBLE_YELLOW, blocked == false)
+    $decision : RaceControlDecision(
+        recommendedFlag != FlagType.RED,
+        safetyCarStatus == null
+    )
+then
+    $decision.getReasons().add("Danger increased while double yellow was active.");
+    modify($decision) {
+        setSafetyCarStatus(SafetyCarStatus.VSC),
+        setExplanation("Double yellow is active and danger became high. VSC is recommended.")
+    }
+end
+
+rule "Active VSC escalates to Safety Car when danger remains high"
+salience 45
+when
+    RaceStatus(
+        currentDecision != null,
+        currentDecision.safetyCarStatus == SafetyCarStatus.VSC
+    )
+    $incident : Incident(
+        dangerLevel == DangerLevel.HIGH,
+        type != IncidentType.WEATHER,
+        $sector : sector
+    )
+    TrackSector(this == $sector, blocked == false)
+    $decision : RaceControlDecision(
+        recommendedFlag != FlagType.RED,
+        safetyCarStatus == null
+    )
+then
+    $decision.getReasons().add("High danger remains while VSC is active.");
+    modify($decision) {
+        setSafetyCarStatus(SafetyCarStatus.SAFETY_CAR),
+        setExplanation("VSC active and danger remains high. Safety Car is recommended.")
+    }
+end
+
+rule "Medium danger activates double yellow"
+salience 30
+when
+    Incident(dangerLevel == DangerLevel.MEDIUM)
+    $decision : RaceControlDecision(
+        recommendedFlag == null,
+        safetyCarStatus == null
+    )
+then
+    $decision.getReasons().add("Medium danger detected.");
+    modify($decision) {
+        setRecommendedFlag(FlagType.DOUBLE_YELLOW),
+        setSafetyCarStatus(SafetyCarStatus.NONE),
+        setExplanation("Medium danger detected. Double yellow flag is recommended.")
+    }
+end
+
+rule "Low danger activates yellow flag"
+salience 20
+when
+    Incident(dangerLevel == DangerLevel.LOW)
+    $decision : RaceControlDecision(
+        recommendedFlag == null,
+        safetyCarStatus == null
+    )
+then
+    $decision.getReasons().add("Low danger detected.");
+    modify($decision) {
+        setRecommendedFlag(FlagType.YELLOW),
+        setSafetyCarStatus(SafetyCarStatus.NONE),
+        setExplanation("Low danger detected. Local yellow flag is recommended.")
+    }
+end
