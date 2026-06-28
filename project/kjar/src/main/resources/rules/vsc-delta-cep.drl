@@ -1,7 +1,6 @@
 package rules;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
 
 import com.ftn.sbnz.model.models.*;
 import com.ftn.sbnz.model.enums.*;
@@ -52,7 +51,7 @@ then
         ViolationSeverity.HIGH,
         false,
         null,
-        LocalDateTime.now()
+        $now
     );
 
     $driver.getViolations().add(driverViolation);
@@ -95,7 +94,7 @@ then
         ViolationSeverity.VERY_HIGH,
         true,
         null,
-        LocalDateTime.now()
+        $now
     );
 
     $driver.getViolations().add(driverViolation);

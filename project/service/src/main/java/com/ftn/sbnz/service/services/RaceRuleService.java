@@ -182,6 +182,14 @@ public class RaceRuleService {
             }
         }
 
+        for (DriverViolation violation : safeList(raceStatus.getViolations())) {
+            insertFact(kieSession, insertedFacts, violation);
+            if (violation.getDriver() != null) {
+                ensureDriverViolationList(violation.getDriver());
+                insertFact(kieSession, insertedFacts, violation.getDriver());
+            }
+        }
+
         for (BlueFlagMonitoring monitoring : safeList(raceStatus.getBlueFlagMonitorings())) {
             insertFact(kieSession, insertedFacts, monitoring);
             if (monitoring.getDriver() != null) {

@@ -8,19 +8,19 @@
     <section class="session-strip" aria-label="Current race status">
       <div class="status-tile">
         <span>Session</span>
-        <strong>VSC</strong>
+        <strong>{{ sessionStatus }}</strong>
       </div>
       <div class="status-tile">
         <span>Flag</span>
-        <strong>Double Yellow</strong>
+        <strong>{{ flagStatus }}</strong>
       </div>
       <div class="status-tile">
         <span>Safety Car</span>
-        <strong>VSC</strong>
+        <strong>{{ safetyCarStatus }}</strong>
       </div>
       <div class="clock-tile">
         <span>Simulation Clock</span>
-        <strong>00:12:15</strong>
+        <strong>{{ simulationClock }}</strong>
       </div>
       <div class="lap-tile">
         <span>Lap</span>
@@ -28,6 +28,10 @@
       </div>
     </section>
   </header>
+
+  @if (errorMessage) {
+    <p class="error-banner">{{ errorMessage }}</p>
+  }
 
   <section class="dashboard-grid">
     <div class="main-column">
@@ -108,41 +112,39 @@
         <form class="facts-form">
           <label>
             Incident type
-            <select>
-              <option>Stopped vehicle</option>
-              <option>Crash</option>
-              <option>Debris</option>
-              <option>Weather</option>
-              <option>Fluid leak</option>
+            <select name="incidentType" [(ngModel)]="incidentForm.type">
+              @for (type of incidentTypes; track type.value) {
+                <option [value]="type.value">{{ type.label }}</option>
+              }
             </select>
           </label>
 
           <label>
             Sector
-            <select>
-              <option>Sector 1</option>
-              <option>Sector 2</option>
-              <option>Sector 3</option>
+            <select name="incidentSector" [(ngModel)]="incidentForm.sectorNumber">
+              @for (sector of sectorOptions; track sector.sectorNumber) {
+                <option [ngValue]="sector.sectorNumber">Sector {{ sector.sectorNumber }}</option>
+              }
             </select>
           </label>
 
           <label>
             Track position
-            <select>
-              <option>Racing line</option>
-              <option>Track edge</option>
-              <option>Off racing line</option>
+            <select name="trackPosition" [(ngModel)]="incidentForm.position">
+              @for (position of trackPositions; track position.value) {
+                <option [value]="position.value">{{ position.label }}</option>
+              }
             </select>
           </label>
 
           <div class="check-grid">
-            <label><input type="checkbox" /> Blocked</label>
-            <label><input type="checkbox" checked /> Debris</label>
-            <label><input type="checkbox" /> Marshals</label>
-            <label><input type="checkbox" /> Medical team</label>
+            <label><input name="blocked" type="checkbox" [(ngModel)]="incidentForm.blocked" /> Blocked</label>
+            <label><input name="debris" type="checkbox" [(ngModel)]="incidentForm.debris" /> Debris</label>
+            <label><input name="marshals" type="checkbox" [(ngModel)]="incidentForm.marshals" /> Marshals</label>
+            <label><input name="medicalTeam" type="checkbox" [(ngModel)]="incidentForm.medicalTeam" /> Medical team</label>
           </div>
 
-          <button type="button">Evaluate Situation</button>
+          <button type="button" (click)="evaluateSituation()" [disabled]="loading">Evaluate Situation</button>
         </form>
       </aside>
 
@@ -157,51 +159,46 @@
         <form class="facts-form">
           <label>
             Driver
-            <select>
-              <option>VER - Max Verstappen</option>
-              <option>LEC - Charles Leclerc</option>
-              <option>NOR - Lando Norris</option>
-              <option>ALB - Alex Albon</option>
+            <select name="violationDriver" [(ngModel)]="violationForm.driverCode">
+              @for (driver of driverOptions; track driver.code) {
+                <option [value]="driver.code">{{ driver.code }} - {{ driver.name }}</option>
+              }
             </select>
           </label>
 
           <label>
             Violation type
-            <select>
-              <option>Track limits</option>
-              <option>Overtaking under yellow</option>
-              <option>Did not slow under yellow</option>
-              <option>Overtaking under safety car</option>
-              <option>Safety car infringement</option>
-              <option>Unsafe release</option>
-              <option>Pit speeding</option>
-              <option>Causing collision</option>
-              <option>Dangerous driving</option>
+            <select name="violationType" [(ngModel)]="violationForm.violationType">
+              @for (type of violationTypes; track type.value) {
+                <option [value]="type.value">{{ type.label }}</option>
+              }
             </select>
           </label>
 
           <label>
             Sector
-            <select>
-              <option>Sector 1</option>
-              <option>Sector 2</option>
-              <option>Sector 3</option>
+            <select name="violationSector" [(ngModel)]="violationForm.sectorNumber">
+              @for (sector of sectorOptions; track sector.sectorNumber) {
+                <option [ngValue]="sector.sectorNumber">Sector {{ sector.sectorNumber }}</option>
+              }
             </select>
           </label>
 
-          <label>
-            Track limits count
-            <select>
-              <option>0</option>
-              <option>1</option>
-              <option>2</option>
-              <option>3</option>
-            </select>
-          </label>
+          @if (violationForm.violationType === 'TRACK_LIMITS') {
+            <label>
+              Track limits count
+              <select name="trackLimitsCount" [(ngModel)]="violationForm.trackLimitsCount">
+                <option [ngValue]="0">0</option>
+                <option [ngValue]="1">1</option>
+                <option [ngValue]="2">2</option>
+                <option [ngValue]="3">3</option>
+              </select>
+            </label>
+          }
 
-          <label class="single-check"><input type="checkbox" /> Repeated violation</label>
+          <label class="single-check"><input name="repeatedViolation" type="checkbox" [(ngModel)]="violationForm.repeated" /> Repeated violation</label>
 
-          <button type="button">Evaluate Driver</button>
+          <button type="button" (click)="evaluateDriver()" [disabled]="loading">Evaluate Driver</button>
         </form>
       </aside>
 
@@ -217,23 +214,23 @@
         <div class="decision-summary">
           <div>
             <span>Recommended flag</span>
-            <strong>Double Yellow</strong>
+            <strong>{{ selectedDecision?.recommendedFlag ?? '-' }}</strong>
           </div>
           <div>
             <span>Safety car status</span>
-            <strong>VSC</strong>
+            <strong>{{ selectedDecision?.safetyCarStatus ?? '-' }}</strong>
           </div>
           <div>
             <span>Reason</span>
-            <p>Medium danger detected in Sector 2. Double yellow is recommended while the sector remains affected.</p>
+            <p>{{ selectedDecision?.explanation ?? 'No current recommendation.' }}</p>
           </div>
         </div>
 
         <div class="decision-actions">
-          <button type="button">Evaluate Race State</button>
-          <button type="button">Apply Recommendation</button>
-          <button type="button" class="secondary">Clear</button>
-          <button type="button" class="secondary">Reset Race</button>
+          <button type="button" (click)="evaluateRaceState()" [disabled]="loading">Evaluate Race State</button>
+          <button type="button" (click)="applyRecommendation()" [disabled]="loading || !selectedDecision">Apply Recommendation</button>
+          <button type="button" class="secondary" (click)="clearRecommendation()">Clear</button>
+          <button type="button" class="secondary" (click)="resetRace()" [disabled]="loading">Reset Race</button>
         </div>
       </section>
 
@@ -245,11 +242,11 @@
           </div>
         </div>
 
-        <div class="clock-face">00:12:15</div>
+        <div class="clock-face">{{ simulationClock }}</div>
         <div class="clock-actions">
-          <button type="button">+1s</button>
-          <button type="button">+5s</button>
-          <button type="button">+10s</button>
+          <button type="button" (click)="advanceClock(1)" [disabled]="loading">+1s</button>
+          <button type="button" (click)="advanceClock(5)" [disabled]="loading">+5s</button>
+          <button type="button" (click)="advanceClock(10)" [disabled]="loading">+10s</button>
         </div>
 
         <div class="cep-controls">
@@ -257,23 +254,22 @@
             <h3>Blue Flag</h3>
             <label>
               Driver
-              <select>
-                <option>ALB - Alex Albon</option>
-                <option>VER - Max Verstappen</option>
-                <option>LEC - Charles Leclerc</option>
-                <option>NOR - Lando Norris</option>
+              <select name="blueFlagDriver" [(ngModel)]="blueFlagForm.driverCode">
+                @for (driver of driverOptions; track driver.code) {
+                  <option [value]="driver.code">{{ driver.code }} - {{ driver.name }}</option>
+                }
               </select>
             </label>
             <div class="check-grid">
-              <label><input type="checkbox" checked /> Active</label>
-              <label><input type="checkbox" /> Passed faster car</label>
+              <label><input name="blueFlagActive" type="checkbox" [(ngModel)]="blueFlagForm.active" /> Active</label>
+              <label><input name="passedFasterCar" type="checkbox" [(ngModel)]="blueFlagForm.passedFasterCar" /> Passed faster car</label>
             </div>
             <label>
               Warning count
-              <select>
-                <option>0</option>
-                <option>1</option>
-                <option>2</option>
+              <select name="blueFlagWarningCount" [(ngModel)]="blueFlagForm.warningCount">
+                <option [ngValue]="0">0</option>
+                <option [ngValue]="1">1</option>
+                <option [ngValue]="2">2</option>
               </select>
             </label>
           </section>
@@ -282,34 +278,33 @@
             <h3>VSC Delta</h3>
             <label>
               Driver
-              <select>
-                <option>LEC - Charles Leclerc</option>
-                <option>VER - Max Verstappen</option>
-                <option>NOR - Lando Norris</option>
-                <option>ALB - Alex Albon</option>
+              <select name="vscDriver" [(ngModel)]="vscDeltaForm.driverCode">
+                @for (driver of driverOptions; track driver.code) {
+                  <option [value]="driver.code">{{ driver.code }} - {{ driver.name }}</option>
+                }
               </select>
             </label>
             <label>
               Delta status
-              <select>
-                <option>RED</option>
-                <option>GREEN</option>
+              <select name="deltaStatus" [(ngModel)]="vscDeltaForm.deltaStatus">
+                <option value="RED">RED</option>
+                <option value="GREEN">GREEN</option>
               </select>
             </label>
-            <label class="single-check"><input type="checkbox" checked /> Active monitoring</label>
+            <label class="single-check"><input name="vscActive" type="checkbox" [(ngModel)]="vscDeltaForm.active" /> Active monitoring</label>
           </section>
         </div>
 
-        <button type="button" class="wide-action">Evaluate CEP</button>
+        <button type="button" class="wide-action" (click)="evaluateCep()" [disabled]="loading">Evaluate CEP</button>
 
         <div class="monitor-list">
           <div>
             <span>Blue flag</span>
-            <strong>ALB active</strong>
+            <strong>{{ blueFlagMonitorLabel }}</strong>
           </div>
           <div>
             <span>VSC delta</span>
-            <strong>LEC red</strong>
+            <strong>{{ vscDeltaMonitorLabel }}</strong>
           </div>
         </div>
       </aside>

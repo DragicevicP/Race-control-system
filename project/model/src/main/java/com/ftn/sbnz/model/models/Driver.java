@@ -1,5 +1,6 @@
 package com.ftn.sbnz.model.models;
 
+import java.beans.Transient;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -7,6 +8,7 @@ import java.util.List;
 public class Driver {
 
     private Long id;
+    private String code;
     private String name;
     private String team;
     private int position;
@@ -18,9 +20,10 @@ public class Driver {
     public Driver() {
     }
 
-    public Driver(Long id, String name, String team, int position, String gap, List<DriverViolation> violations,
-            int warningCount, Penalty activePenalty) {
+    public Driver(Long id, String code, String name, String team, int position, String gap,
+            List<DriverViolation> violations, int warningCount, Penalty activePenalty) {
         this.id = id;
+        this.code = code;
         this.name = name;
         this.team = team;
         this.position = position;
@@ -36,6 +39,14 @@ public class Driver {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getCode() {
+        return code;
+    }
+
+    public void setCode(String code) {
+        this.code = code;
     }
 
     public String getName() {
@@ -70,6 +81,7 @@ public class Driver {
         this.gap = gap;
     }
 
+    @Transient
     public List<DriverViolation> getViolations() {
         return violations;
     }

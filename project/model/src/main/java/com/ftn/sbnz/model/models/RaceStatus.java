@@ -17,6 +17,7 @@ public class RaceStatus {
     private List<TrackSector> sectors = new ArrayList<>();
     private List<Incident> incidents = new ArrayList<>();
     private List<Driver> drivers = new ArrayList<>();
+    private List<DriverViolation> violations = new ArrayList<>();
     private List<BlueFlagMonitoring> blueFlagMonitorings = new ArrayList<>();
     private List<VscDeltaMonitoring> vscDeltaMonitorings = new ArrayList<>();
     private RaceControlDecision currentDecision;
@@ -27,15 +28,17 @@ public class RaceStatus {
     }
 
     public RaceStatus(Long id, SessionStatus status, TrackStatus trackStatus, List<TrackSector> sectors,
-            List<Incident> incidents, List<Driver> drivers, List<BlueFlagMonitoring> blueFlagMonitorings,
-            List<VscDeltaMonitoring> vscDeltaMonitorings, RaceControlDecision currentDecision,
-            List<RaceControlDecision> decisionLog, LocalDateTime simulationTime) {
+            List<Incident> incidents, List<Driver> drivers, List<DriverViolation> violations,
+            List<BlueFlagMonitoring> blueFlagMonitorings, List<VscDeltaMonitoring> vscDeltaMonitorings,
+            RaceControlDecision currentDecision, List<RaceControlDecision> decisionLog,
+            LocalDateTime simulationTime) {
         this.id = id;
         this.status = status;
         this.trackStatus = trackStatus;
         this.sectors = sectors;
         this.incidents = incidents;
         this.drivers = drivers;
+        this.violations = violations;
         this.blueFlagMonitorings = blueFlagMonitorings;
         this.vscDeltaMonitorings = vscDeltaMonitorings;
         this.currentDecision = currentDecision;
@@ -89,6 +92,14 @@ public class RaceStatus {
 
     public void setDrivers(List<Driver> drivers) {
         this.drivers = drivers;
+    }
+
+    public List<DriverViolation> getViolations() {
+        return violations;
+    }
+
+    public void setViolations(List<DriverViolation> violations) {
+        this.violations = violations;
     }
 
     public List<BlueFlagMonitoring> getBlueFlagMonitorings() {
