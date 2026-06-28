@@ -122,6 +122,7 @@ export interface DriverBehaviorReport {
   causingCollision?: boolean;
   trackLimitsCount?: number;
   time?: string;
+  repeatedRequested?: boolean;
   processed?: boolean;
 }
 

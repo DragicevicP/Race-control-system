@@ -6,23 +6,17 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.ftn.sbnz.model.enums.DeltaStatus;
 import com.ftn.sbnz.model.enums.FlagType;
 import com.ftn.sbnz.model.enums.PenaltyType;
-import com.ftn.sbnz.model.enums.RestartStatus;
 import com.ftn.sbnz.model.enums.SafetyCarStatus;
 import com.ftn.sbnz.model.enums.SessionStatus;
 import com.ftn.sbnz.model.enums.TrackStatus;
-import com.ftn.sbnz.model.enums.ViolationSeverity;
-import com.ftn.sbnz.model.models.BlueFlagMonitoring;
 import com.ftn.sbnz.model.models.Driver;
 import com.ftn.sbnz.model.models.DriverViolation;
 import com.ftn.sbnz.model.models.Penalty;
 import com.ftn.sbnz.model.models.RaceControlDecision;
 import com.ftn.sbnz.model.models.RaceStatus;
 import com.ftn.sbnz.model.models.TrackSector;
-import com.ftn.sbnz.model.models.Violation;
-import com.ftn.sbnz.model.models.VscDeltaMonitoring;
 
 @Service
 public class RaceStateService {
@@ -110,18 +104,17 @@ public class RaceStateService {
     private RaceStatus createInitialState() {
         LocalDateTime demoTime = LocalDateTime.of(2026, 6, 28, 14, 12, 15);
         List<Driver> drivers = createDemoDrivers();
-        List<DriverViolation> violations = createDemoViolations(drivers, demoTime);
 
         RaceStatus initialState = new RaceStatus();
-        initialState.setStatus(SessionStatus.VSC);
-        initialState.setTrackStatus(TrackStatus.PARTIALLY_BLOCKED);
+        initialState.setStatus(SessionStatus.GREEN_FLAG);
+        initialState.setTrackStatus(TrackStatus.SAFE);
         initialState.setSectors(createDemoSectors());
         initialState.setDrivers(drivers);
-        initialState.setViolations(violations);
-        initialState.setBlueFlagMonitorings(createDemoBlueFlagMonitorings(drivers, demoTime));
-        initialState.setVscDeltaMonitorings(createDemoVscDeltaMonitorings(drivers, demoTime));
-        initialState.setCurrentDecision(createCurrentDemoDecision(demoTime));
-        initialState.setDecisionLog(createDemoDecisionLog(demoTime));
+        initialState.setViolations(new ArrayList<>());
+        initialState.setBlueFlagMonitorings(new ArrayList<>());
+        initialState.setVscDeltaMonitorings(new ArrayList<>());
+        initialState.setCurrentDecision(null);
+        initialState.setDecisionLog(new ArrayList<>());
         initialState.setSimulationTime(demoTime);
         return initialState;
     }
@@ -129,7 +122,7 @@ public class RaceStateService {
     private List<TrackSector> createDemoSectors() {
         return List.of(
                 new TrackSector(1, false, false, false, false, false, false, FlagType.GREEN),
-                new TrackSector(2, false, true, true, false, true, false, FlagType.DOUBLE_YELLOW),
+                new TrackSector(2, false, false, false, false, false, false, FlagType.GREEN),
                 new TrackSector(3, false, false, false, false, false, false, FlagType.GREEN));
     }
 
@@ -138,7 +131,7 @@ public class RaceStateService {
                 driver(1L, "ANT", "Kimi Antonelli", "Mercedes-AMG Petronas F1 Team", 1, "Leader", 0, null),
                 driver(2L, "HAM", "Lewis Hamilton", "Scuderia Ferrari HP", 2, "+1.284", 0, null),
                 driver(3L, "RUS", "George Russell", "Mercedes-AMG Petronas F1 Team", 3, "+3.912", 0, null),
-                driver(4L, "LEC", "Charles Leclerc", "Scuderia Ferrari HP", 4, "+5.408", 1,new Penalty(PenaltyType.TIME_PENALTY, 5.0F, "Track limits")),
+                driver(4L, "LEC", "Charles Leclerc", "Scuderia Ferrari HP", 4, "+5.408", 0, null),
                 driver(5L, "NOR", "Lando Norris", "McLaren Mastercard F1 Team", 5, "+7.106", 0, null),
                 driver(6L, "PIA", "Oscar Piastri", "McLaren Mastercard F1 Team", 6, "+8.774", 0, null),
                 driver(7L, "VER", "Max Verstappen", "Oracle Red Bull Racing", 7, "+10.332", 0, null),
@@ -155,86 +148,13 @@ public class RaceStateService {
                 driver(18L, "BEA", "Oliver Bearman", "TGR Haas F1 Team", 18, "+51.306", 0, null),
                 driver(19L, "LAW", "Liam Lawson", "Racing Bulls F1 Team", 19, "+1 lap", 0, null),
                 driver(20L, "LIN", "Arvid Lindblad", "Racing Bulls F1 Team", 20, "+1 lap", 0, null),
-                driver(21L, "PER", "Sergio Perez", "Cadillac Formula 1 Team", 21, "+1 lap", 1, new Penalty(PenaltyType.WARNING, 0.0F, "Blue flag warning")),
+                driver(21L, "PER", "Sergio Perez", "Cadillac Formula 1 Team", 21, "+1 lap", 0, null),
                 driver(22L, "BOT", "Valtteri Bottas", "Cadillac Formula 1 Team", 22, "+1 lap", 0, null)));
     }
 
     private Driver driver(Long id, String code, String name, String team, int position, String gap, int warningCount,
             Penalty activePenalty) {
         return new Driver(id, code, name, team, position, gap, new ArrayList<>(), warningCount, activePenalty);
-    }
-
-    private List<DriverViolation> createDemoViolations(List<Driver> drivers, LocalDateTime demoTime) {
-        Driver leclerc = findDriver(drivers, "LEC");
-        Driver perez = findDriver(drivers, "PER");
-
-        DriverViolation trackLimits = violation(1L, leclerc,
-                new Violation("TRACK_LIMITS_X3", "Track limits", "Third track limits infringement",
-                        ViolationSeverity.MEDIUM, PenaltyType.TIME_PENALTY),
-                ViolationSeverity.MEDIUM, true,
-                new Penalty(PenaltyType.TIME_PENALTY, 5.0F, "Third track limits infringement"),
-                demoTime.minusMinutes(3));
-
-        DriverViolation blueFlag = violation(2L, perez,
-                new Violation("IGNORING_BLUE_FLAG", "Ignoring blue flags",
-                        "Driver did not let faster car pass within allowed window", ViolationSeverity.MEDIUM,
-                        PenaltyType.WARNING),
-                ViolationSeverity.MEDIUM, false,
-                new Penalty(PenaltyType.WARNING, 0.0F, "Blue flag warning"),
-                demoTime.minusSeconds(30));
-
-        leclerc.getViolations().add(trackLimits);
-        perez.getViolations().add(blueFlag);
-        return new ArrayList<>(List.of(trackLimits, blueFlag));
-    }
-
-    private DriverViolation violation(Long id, Driver driver, Violation violation, ViolationSeverity severity,
-            boolean repeated, Penalty penalty, LocalDateTime time) {
-        return new DriverViolation(id, driver, violation, severity, repeated, penalty, time);
-    }
-
-    private List<BlueFlagMonitoring> createDemoBlueFlagMonitorings(List<Driver> drivers, LocalDateTime demoTime) {
-        return new ArrayList<>(List.of(
-                new BlueFlagMonitoring(findDriver(drivers, "PER"), demoTime.minusSeconds(8), 1, false, true),
-                new BlueFlagMonitoring(findDriver(drivers, "BOT"), demoTime.minusSeconds(3), 0, false, false)));
-    }
-
-    private List<VscDeltaMonitoring> createDemoVscDeltaMonitorings(List<Driver> drivers, LocalDateTime demoTime) {
-        return new ArrayList<>(List.of(
-                new VscDeltaMonitoring(findDriver(drivers, "LEC"), demoTime.minusSeconds(45), DeltaStatus.RED,
-                        demoTime.minusSeconds(4), true),
-                new VscDeltaMonitoring(findDriver(drivers, "NOR"), demoTime.minusSeconds(45), DeltaStatus.GREEN, null,
-                        true)));
-    }
-
-    private RaceControlDecision createCurrentDemoDecision(LocalDateTime demoTime) {
-        return new RaceControlDecision(
-                FlagType.DOUBLE_YELLOW,
-                SafetyCarStatus.VSC,
-                RestartStatus.NONE,
-                null,
-                "Medium danger detected in Sector 2. VSC remains active while marshals clear debris.",
-                new ArrayList<>(List.of("Debris reported in Sector 2", "Marshals on track", "VSC delta monitoring active")),
-                false,
-                demoTime.minusSeconds(10));
-    }
-
-    private List<RaceControlDecision> createDemoDecisionLog(LocalDateTime demoTime) {
-        return new ArrayList<>(List.of(
-                new RaceControlDecision(FlagType.YELLOW, SafetyCarStatus.NONE, RestartStatus.NONE, null,
-                        "Yellow flag shown in Sector 2 after debris report.",
-                        new ArrayList<>(List.of("Debris reported in Sector 2")), true, demoTime.minusMinutes(2)),
-                new RaceControlDecision(FlagType.DOUBLE_YELLOW, SafetyCarStatus.VSC, RestartStatus.NONE, null,
-                        "VSC activated due to marshals entering Sector 2.",
-                        new ArrayList<>(List.of("Marshals on track", "Partially blocked sector")), true,
-                        demoTime.minusSeconds(45))));
-    }
-
-    private Driver findDriver(List<Driver> drivers, String code) {
-        return drivers.stream()
-                .filter(driver -> code.equals(driver.getCode()))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Missing demo driver: " + code));
     }
 
     private void updateSessionStatus(RaceControlDecision decision) {

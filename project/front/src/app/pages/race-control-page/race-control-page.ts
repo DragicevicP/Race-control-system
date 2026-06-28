@@ -49,11 +49,19 @@ export class RaceControlPage implements OnInit {
     sectorNumber: 2,
     position: 'RACING_LINE' as TrackPosition,
     blocked: false,
-    debris: true,
     marshals: true,
     medicalTeam: false,
     multipleSectors: false,
     driverLeftCar: false,
+  };
+
+  protected recoveryForm = {
+    sectorNumber: 1,
+    blocked: true,
+    debris: true,
+    stoppedVehicle: true,
+    marshals: true,
+    medicalTeam: true,
   };
 
   protected violationForm = {
@@ -81,7 +89,7 @@ export class RaceControlPage implements OnInit {
     { value: 'STOPPED_VEHICLE', label: 'Stopped vehicle' },
     { value: 'CRASH', label: 'Crash' },
     { value: 'DEBRIS', label: 'Debris' },
-    { value: 'WEATHER', label: 'Weather' },
+    { value: 'WEATHER', label: 'Extreme weather' },
     { value: 'FLUID_LEAK', label: 'Fluid leak' },
   ] as const;
 
@@ -95,6 +103,8 @@ export class RaceControlPage implements OnInit {
     { value: 'TRACK_LIMITS', label: 'Track limits' },
     { value: 'OVERTAKING_YELLOW', label: 'Overtaking under yellow' },
     { value: 'DID_NOT_SLOW_YELLOW', label: 'Did not slow under yellow' },
+    { value: 'OVERTAKING_DOUBLE_YELLOW', label: 'Overtaking under double yellow' },
+    { value: 'DID_NOT_SLOW_DOUBLE_YELLOW', label: 'Did not slow under double yellow' },
     { value: 'OVERTAKING_SAFETY_CAR', label: 'Overtaking under safety car' },
     { value: 'SAFETY_CAR_INFRINGEMENT', label: 'Safety car infringement' },
     { value: 'UNSAFE_RELEASE', label: 'Unsafe release' },
@@ -127,7 +137,7 @@ export class RaceControlPage implements OnInit {
         team: this.shortTeam(driver.team),
         gap: driver.gap ?? '-',
         warnings: driver.warningCount ?? 0,
-        penalty: this.penaltyLabel(driver.activePenalty),
+        penalty: this.driverPenaltyLabel(driver),
       }));
   }
 
@@ -149,12 +159,30 @@ export class RaceControlPage implements OnInit {
     return this.raceStatus?.status ?? '-';
   }
 
+  protected get sessionLabel(): string {
+    return this.formatEnumLabel(this.sessionStatus);
+  }
+
   protected get flagStatus(): string {
-    return this.selectedDecision?.recommendedFlag ?? this.primarySectorFlag();
+    if (this.selectedDecision?.recommendedFlag) {
+      return this.selectedDecision.recommendedFlag;
+    }
+    if (this.selectedDecision?.restartStatus) {
+      return this.selectedDecision.restartStatus === 'RACE_RESTARTED' ? 'GREEN' : this.primarySectorFlag();
+    }
+    return this.primarySectorFlag();
+  }
+
+  protected get flagLabel(): string {
+    return this.formatEnumLabel(this.flagStatus);
   }
 
   protected get safetyCarStatus(): string {
     return this.selectedDecision?.safetyCarStatus ?? 'NONE';
+  }
+
+  protected get safetyCarLabel(): string {
+    return this.formatEnumLabel(this.safetyCarStatus);
   }
 
   protected get simulationClock(): string {
@@ -189,31 +217,73 @@ export class RaceControlPage implements OnInit {
 
   protected evaluateSituation(): void {
     const raceStatus = this.cloneState();
-    const sector = this.findSector(raceStatus, this.incidentForm.sectorNumber);
-    if (!sector) {
+    const sector = this.incidentUsesLocation ? this.findSector(raceStatus, this.incidentForm.sectorNumber) : undefined;
+    if (this.incidentUsesLocation && !sector) {
       this.showError('Selected sector does not exist.');
       return;
     }
 
-    sector.blocked = this.incidentForm.blocked;
-    sector.partiallyBlocked = !this.incidentForm.blocked && (this.incidentForm.debris || this.incidentForm.marshals);
-    sector.hasDebris = this.incidentForm.debris;
-    sector.hasStoppedVehicle = this.incidentForm.type === 'STOPPED_VEHICLE';
-    sector.marshalsOnTrack = this.incidentForm.marshals;
-    sector.medicalTeamOnTrack = this.incidentForm.medicalTeam;
+    const hasDebris = this.incidentForm.type === 'DEBRIS';
+    const hasFluidLeak = this.incidentForm.type === 'FLUID_LEAK';
+    const hasStoppedVehicle = this.incidentForm.type === 'STOPPED_VEHICLE';
+    if (sector) {
+      sector.blocked = this.incidentForm.blocked;
+      sector.partiallyBlocked = !this.incidentForm.blocked
+        && (hasDebris || hasFluidLeak || hasStoppedVehicle || this.incidentForm.marshals);
+      sector.hasDebris = hasDebris;
+      sector.hasStoppedVehicle = hasStoppedVehicle;
+      sector.marshalsOnTrack = this.incidentForm.marshals;
+      sector.medicalTeamOnTrack = this.incidentShowsMedicalTeam && this.incidentForm.medicalTeam;
+    }
 
     const incident: Incident = {
       id: Date.now(),
       type: this.incidentForm.type,
       sector,
-      position: this.incidentForm.position,
+      position: this.incidentUsesLocation ? this.incidentForm.position : undefined,
       multipleSectors: this.incidentForm.multipleSectors,
       driverLeftCar: this.incidentForm.driverLeftCar,
-      fluidLeak: this.incidentForm.type === 'FLUID_LEAK',
+      fluidLeak: hasFluidLeak,
       resolved: false,
     };
 
     raceStatus.incidents = [...(raceStatus.incidents ?? []), incident];
+    this.replaceStateThenEvaluate(raceStatus);
+  }
+
+  protected clearSelectedSector(): void {
+    const raceStatus = this.cloneState();
+    const sector = this.findSector(raceStatus, this.recoveryForm.sectorNumber);
+    if (!sector) {
+      this.showError('Selected recovery sector does not exist.');
+      return;
+    }
+
+    this.applyRecoveryToSector(sector);
+    this.markClearSectorsGreen(raceStatus);
+    raceStatus.incidents = (raceStatus.incidents ?? []).map((incident) =>
+      incident.sector?.sectorNumber === sector.sectorNumber && this.isSectorClear(sector)
+        ? { ...incident, sector: { ...sector }, resolved: true }
+        : incident
+    );
+    this.normalizeTrackStatus(raceStatus);
+    this.replaceStateThenEvaluate(raceStatus);
+  }
+
+  protected resolveAllIncidents(): void {
+    const raceStatus = this.cloneState();
+    raceStatus.sectors = (raceStatus.sectors ?? []).map((sector) => {
+      const clearedSector = { ...sector };
+      this.resetSector(clearedSector);
+      return clearedSector;
+    });
+    raceStatus.incidents = (raceStatus.incidents ?? []).map((incident) => ({
+      ...incident,
+      sector: incident.sector ? this.clearedSectorCopy(incident.sector) : incident.sector,
+      resolved: true,
+    }));
+    raceStatus.trackStatus = 'SAFE';
+    this.markClearSectorsGreen(raceStatus);
     this.replaceStateThenEvaluate(raceStatus);
   }
 
@@ -283,7 +353,7 @@ export class RaceControlPage implements OnInit {
     }
 
     const report = this.createDriverBehaviorReport(driver);
-    const previousViolations = this.violationForm.repeated
+    const previousViolations = this.violationForm.repeated && !this.isTrackLimitsViolation
       ? (this.raceStatus?.violations ?? []).filter((violation) => violation.driver?.code === driver.code)
       : [];
 
@@ -292,6 +362,29 @@ export class RaceControlPage implements OnInit {
       next: (raceStatus) => this.setRaceState(raceStatus),
       error: () => this.showError('Driver behavior evaluation failed.'),
     });
+  }
+
+  protected onViolationTypeChanged(type: string): void {
+    if (type === 'TRACK_LIMITS') {
+      this.violationForm.repeated = false;
+    }
+  }
+
+  protected onIncidentTypeChanged(type: IncidentType): void {
+    if (type === 'WEATHER') {
+      this.incidentForm.blocked = false;
+      this.incidentForm.marshals = false;
+      this.incidentForm.medicalTeam = false;
+      this.incidentForm.multipleSectors = true;
+      this.incidentForm.driverLeftCar = false;
+      return;
+    }
+
+    this.incidentForm.multipleSectors = false;
+    if (type === 'DEBRIS' || type === 'FLUID_LEAK') {
+      this.incidentForm.medicalTeam = false;
+      this.incidentForm.driverLeftCar = false;
+    }
   }
 
   protected evaluateCep(): void {
@@ -330,8 +423,40 @@ export class RaceControlPage implements OnInit {
     return `sector-${status.toLowerCase().replace('_', '-')}`;
   }
 
+  protected flagIndicatorClass(status: string): string {
+    return `flag-${status.toLowerCase().replace('_', '-')}`;
+  }
+
   protected formatViolationLabel(value: string): string {
     return this.violationTypes.find((type) => type.value === value)?.label ?? value;
+  }
+
+  protected get violationUsesSector(): boolean {
+    return this.violationForm.violationType !== 'UNSAFE_RELEASE'
+      && this.violationForm.violationType !== 'PIT_SPEEDING';
+  }
+
+  protected get isTrackLimitsViolation(): boolean {
+    return this.violationForm.violationType === 'TRACK_LIMITS';
+  }
+
+  protected get isSafetyCarViolation(): boolean {
+    return this.violationForm.violationType === 'OVERTAKING_SAFETY_CAR'
+      || this.violationForm.violationType === 'SAFETY_CAR_INFRINGEMENT';
+  }
+
+  protected get showSafetyCarHint(): boolean {
+    return this.isSafetyCarViolation && this.safetyCarStatus !== 'SAFETY_CAR';
+  }
+
+  protected get incidentUsesLocation(): boolean {
+    return this.incidentForm.type !== 'WEATHER';
+  }
+
+  protected get incidentShowsMedicalTeam(): boolean {
+    return this.incidentForm.type !== 'WEATHER'
+      && this.incidentForm.type !== 'DEBRIS'
+      && this.incidentForm.type !== 'FLUID_LEAK';
   }
 
   private setRaceState(raceStatus: RaceStatus): void {
@@ -345,7 +470,11 @@ export class RaceControlPage implements OnInit {
   private replaceStateThenEvaluate(raceStatus: RaceStatus): void {
     this.loading = true;
     this.raceControlService.replaceRaceState(raceStatus).subscribe({
-      next: () => this.evaluateRaceState(),
+      next: (savedState) => {
+        this.raceStatus = savedState;
+        this.currentDecision = savedState.currentDecision ?? undefined;
+        this.evaluateRaceState();
+      },
       error: () => this.showError('Race facts could not be saved.'),
     });
   }
@@ -359,20 +488,27 @@ export class RaceControlPage implements OnInit {
     const activeFlag: FlagType =
       type === 'OVERTAKING_YELLOW' || type === 'DID_NOT_SLOW_YELLOW'
         ? 'YELLOW'
+        : type === 'OVERTAKING_DOUBLE_YELLOW' || type === 'DID_NOT_SLOW_DOUBLE_YELLOW'
+          ? 'DOUBLE_YELLOW'
         : (this.primarySectorFlag() as FlagType);
 
     return {
       driver,
       activeFlag,
       safetyCarStatus,
-      didNotSlow: type === 'DID_NOT_SLOW_YELLOW' || type === 'SAFETY_CAR_INFRINGEMENT',
-      overtook: type === 'OVERTAKING_YELLOW' || type === 'OVERTAKING_SAFETY_CAR',
+      didNotSlow: type === 'DID_NOT_SLOW_YELLOW'
+        || type === 'DID_NOT_SLOW_DOUBLE_YELLOW'
+        || type === 'SAFETY_CAR_INFRINGEMENT',
+      overtook: type === 'OVERTAKING_YELLOW'
+        || type === 'OVERTAKING_DOUBLE_YELLOW'
+        || type === 'OVERTAKING_SAFETY_CAR',
       unsafeRelease: type === 'UNSAFE_RELEASE',
       pitSpeeding: type === 'PIT_SPEEDING',
       dangerousDriving: type === 'DANGEROUS_DRIVING',
       causingCollision: type === 'CAUSING_COLLISION',
       trackLimitsCount: type === 'TRACK_LIMITS' ? Number(this.violationForm.trackLimitsCount) : 0,
       time: this.raceStatus?.simulationTime ?? new Date().toISOString(),
+      repeatedRequested: type !== 'TRACK_LIMITS' && this.violationForm.repeated,
       processed: false,
     };
   }
@@ -441,6 +577,81 @@ export class RaceControlPage implements OnInit {
     return raceStatus?.drivers?.find((driver) => driver.code === code);
   }
 
+  private resetSector(sector: TrackSector): void {
+    sector.blocked = false;
+    sector.partiallyBlocked = false;
+    sector.hasDebris = false;
+    sector.hasStoppedVehicle = false;
+    sector.marshalsOnTrack = false;
+    sector.medicalTeamOnTrack = false;
+    sector.activeFlag = 'GREEN';
+  }
+
+  private clearedSectorCopy(sector: TrackSector): TrackSector {
+    const clearedSector = { ...sector };
+    this.resetSector(clearedSector);
+    return clearedSector;
+  }
+
+  private applyRecoveryToSector(sector: TrackSector): void {
+    if (this.recoveryForm.blocked) {
+      sector.blocked = false;
+    }
+    if (this.recoveryForm.debris) {
+      sector.hasDebris = false;
+    }
+    if (this.recoveryForm.stoppedVehicle) {
+      sector.hasStoppedVehicle = false;
+    }
+    if (this.recoveryForm.marshals) {
+      sector.marshalsOnTrack = false;
+    }
+    if (this.recoveryForm.medicalTeam) {
+      sector.medicalTeamOnTrack = false;
+    }
+
+    sector.partiallyBlocked = !sector.blocked && (
+      !!sector.hasDebris
+      || !!sector.hasStoppedVehicle
+      || !!sector.marshalsOnTrack
+      || !!sector.medicalTeamOnTrack
+    );
+
+    if (this.isSectorClear(sector)) {
+      sector.activeFlag = 'GREEN';
+    }
+  }
+
+  private isSectorClear(sector: TrackSector): boolean {
+    return !sector.blocked
+      && !sector.partiallyBlocked
+      && !sector.hasDebris
+      && !sector.hasStoppedVehicle
+      && !sector.marshalsOnTrack
+      && !sector.medicalTeamOnTrack;
+  }
+
+  private normalizeTrackStatus(raceStatus: RaceStatus): void {
+    const sectors = raceStatus.sectors ?? [];
+    if (sectors.some((sector) => sector.blocked)) {
+      raceStatus.trackStatus = 'FULLY_BLOCKED';
+      return;
+    }
+    if (sectors.some((sector) => !this.isSectorClear(sector))) {
+      raceStatus.trackStatus = 'PARTIALLY_BLOCKED';
+      return;
+    }
+    raceStatus.trackStatus = 'SAFE';
+  }
+
+  private markClearSectorsGreen(raceStatus: RaceStatus): void {
+    for (const sector of raceStatus.sectors ?? []) {
+      if (this.isSectorClear(sector)) {
+        sector.activeFlag = 'GREEN';
+      }
+    }
+  }
+
   private sectorNote(sector: TrackSector): string {
     const notes: string[] = [];
     if (sector.blocked) notes.push('Blocked');
@@ -465,7 +676,43 @@ export class RaceControlPage implements OnInit {
     if (penalty.seconds && penalty.seconds > 0) {
       return `${penalty.seconds} sec`;
     }
-    return penalty.type.replace('_', ' ');
+    return this.formatEnumLabel(penalty.type);
+  }
+
+  private driverPenaltyLabel(driver: Driver): string {
+    const penalties = (this.raceStatus?.violations ?? [])
+      .filter((violation) => violation.driver?.code === driver.code && violation.penalty)
+      .map((violation) => this.penaltyLabel(violation.penalty));
+
+    if (penalties.length === 0 && driver.activePenalty) {
+      penalties.push(this.penaltyLabel(driver.activePenalty));
+    }
+
+    const penaltyCounts = penalties
+      .filter((penalty) => penalty !== '-')
+      .reduce<Record<string, number>>((counts, penalty) => {
+        counts[penalty] = (counts[penalty] ?? 0) + 1;
+        return counts;
+      }, {});
+
+    const groupedPenalties = Object.entries(penaltyCounts)
+      .map(([penalty, count]) => count > 1 ? `${penalty} x${count}` : penalty);
+
+    return groupedPenalties.length ? groupedPenalties.join(' + ') : '-';
+  }
+
+  private formatEnumLabel(value?: string): string {
+    if (!value || value === '-') {
+      return '-';
+    }
+    if (value === 'VSC') {
+      return 'VSC';
+    }
+    return value
+      .toLowerCase()
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   }
 
   private shortTeam(team?: string): string {

@@ -18,11 +18,14 @@ import org.kie.api.runtime.KieSession;
 import org.kie.internal.utils.KieHelper;
 import org.springframework.stereotype.Service;
 
+import com.ftn.sbnz.model.enums.PenaltyType;
+import com.ftn.sbnz.model.enums.ViolationSeverity;
 import com.ftn.sbnz.model.models.BlueFlagMonitoring;
 import com.ftn.sbnz.model.models.Driver;
 import com.ftn.sbnz.model.models.DriverBehaviorReport;
 import com.ftn.sbnz.model.models.DriverViolation;
 import com.ftn.sbnz.model.models.Incident;
+import com.ftn.sbnz.model.models.Penalty;
 import com.ftn.sbnz.model.models.RaceControlDecision;
 import com.ftn.sbnz.model.models.RaceStatus;
 import com.ftn.sbnz.model.models.TrackSector;
@@ -92,9 +95,11 @@ public class RaceRuleService {
         kieSession.fireAllRules();
         kieSession.dispose();
 
+        LocalDateTime reportTime = report.getTime() != null ? report.getTime() : LocalDateTime.now();
         List<DriverViolation> createdViolations = new ArrayList<>();
         for (DriverViolation violation : safeViolations(driver)) {
             if (!before.contains(violation)) {
+                violation.setTime(reportTime);
                 createdViolations.add(evaluateViolationTemplate(violation));
             }
         }
@@ -125,6 +130,10 @@ public class RaceRuleService {
     }
 
     public DriverViolation evaluateViolationTemplate(DriverViolation violation) {
+        if (applyTrackLimitsPenalty(violation)) {
+            return violation;
+        }
+
         InputStream template = getClass().getResourceAsStream("/templates/penalty-template.drt");
         InputStream data = getClass().getResourceAsStream("/templates/penalty-data.xls");
 
@@ -153,6 +162,36 @@ public class RaceRuleService {
         kieSession.dispose();
 
         return violation;
+    }
+
+    private boolean applyTrackLimitsPenalty(DriverViolation violation) {
+        if (violation == null || violation.getViolation() == null || violation.getPenalty() != null) {
+            return false;
+        }
+
+        String code = violation.getViolation().getCode();
+        if ("TRACK_LIMITS".equals(code)) {
+            violation.setSeverity(ViolationSeverity.VERY_LOW);
+            violation.setPenalty(new Penalty(PenaltyType.WARNING, 0.0F, "First track limits offence. Warning assigned."));
+            return true;
+        }
+        if ("TRACK_LIMITS_X2".equals(code)) {
+            violation.setSeverity(ViolationSeverity.VERY_LOW);
+            violation.setPenalty(new Penalty(PenaltyType.WARNING, 0.0F, "Second track limits offence. Warning assigned."));
+            return true;
+        }
+        if ("TRACK_LIMITS_X3".equals(code)) {
+            violation.setSeverity(ViolationSeverity.MEDIUM);
+            violation.setPenalty(new Penalty(PenaltyType.TIME_PENALTY, 5.0F, "Third track limits offence. Five seconds penalty assigned."));
+            return true;
+        }
+        if ("TRACK_LIMITS_FURTHER".equals(code)) {
+            violation.setSeverity(ViolationSeverity.HIGH);
+            violation.setPenalty(new Penalty(PenaltyType.TIME_PENALTY, 10.0F, "Further track limits offence. Ten seconds penalty assigned."));
+            return true;
+        }
+
+        return false;
     }
 
     private void insertRaceStatusFacts(KieSession kieSession, RaceStatus raceStatus) {

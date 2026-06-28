@@ -5,6 +5,23 @@ import java.time.LocalDateTime;
 import com.ftn.sbnz.model.models.*;
 import com.ftn.sbnz.model.enums.*;
 
+rule "User selected repeated driver violation"
+salience 200
+when
+    DriverBehaviorReport(
+        repeatedRequested == true,
+        $driver : driver
+    )
+    $current : DriverViolation(
+        repeated == false,
+        driver == $driver
+    )
+then
+    modify($current) {
+        setRepeated(true)
+    }
+end
+
 rule "Unsafe release creates driver violation"
 salience 100
 when
@@ -266,10 +283,10 @@ then
         "TRACK_LIMITS_X2",
         "Second track limits",
         "Driver exceeded track limits for the second time.",
-        ViolationSeverity.LOW,
+        ViolationSeverity.VERY_LOW,
         null
     );
-    DriverViolation driverViolation = new DriverViolation(null, $driver, violation, ViolationSeverity.LOW, false, null, LocalDateTime.now());
+    DriverViolation driverViolation = new DriverViolation(null, $driver, violation, ViolationSeverity.VERY_LOW, false, null, LocalDateTime.now());
     $driver.getViolations().add(driverViolation);
     insert(driverViolation);
     modify($report) { setProcessed(true) }
@@ -280,7 +297,7 @@ salience 50
 when
     $report : DriverBehaviorReport(
         processed == false,
-        trackLimitsCount >= 3,
+        trackLimitsCount == 3,
         $driver : driver
     )
 then
@@ -292,6 +309,28 @@ then
         null
     );
     DriverViolation driverViolation = new DriverViolation(null, $driver, violation, ViolationSeverity.MEDIUM, false, null, LocalDateTime.now());
+    $driver.getViolations().add(driverViolation);
+    insert(driverViolation);
+    modify($report) { setProcessed(true) }
+end
+
+rule "Further track limits creates driver violation"
+salience 50
+when
+    $report : DriverBehaviorReport(
+        processed == false,
+        trackLimitsCount >= 4,
+        $driver : driver
+    )
+then
+    Violation violation = new Violation(
+        "TRACK_LIMITS_FURTHER",
+        "Further track limits",
+        "Driver exceeded track limits again after previous infringements.",
+        ViolationSeverity.HIGH,
+        null
+    );
+    DriverViolation driverViolation = new DriverViolation(null, $driver, violation, ViolationSeverity.HIGH, false, null, LocalDateTime.now());
     $driver.getViolations().add(driverViolation);
     insert(driverViolation);
     modify($report) { setProcessed(true) }

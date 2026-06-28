@@ -8,15 +8,18 @@
     <section class="session-strip" aria-label="Current race status">
       <div class="status-tile">
         <span>Session</span>
-        <strong>{{ sessionStatus }}</strong>
+        <strong>{{ sessionLabel }}</strong>
       </div>
       <div class="status-tile">
         <span>Flag</span>
-        <strong>{{ flagStatus }}</strong>
+        <strong class="flag-value">
+          <i [class]="'flag-dot ' + flagIndicatorClass(flagStatus)" aria-hidden="true"></i>
+          {{ flagLabel }}
+        </strong>
       </div>
       <div class="status-tile">
         <span>Safety Car</span>
-        <strong>{{ safetyCarStatus }}</strong>
+        <strong>{{ safetyCarLabel }}</strong>
       </div>
       <div class="clock-tile">
         <span>Simulation Clock</span>
@@ -98,6 +101,21 @@
         </table>
       </section>
 
+      <section class="panel log-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-label">Log</p>
+            <h2>Decision Timeline</h2>
+          </div>
+        </div>
+
+        <ol>
+          @for (event of events; track $index) {
+            <li>{{ event }}</li>
+          }
+        </ol>
+      </section>
+
     </div>
 
     <div class="side-column">
@@ -112,93 +130,77 @@
         <form class="facts-form">
           <label>
             Incident type
-            <select name="incidentType" [(ngModel)]="incidentForm.type">
+            <select name="incidentType" [(ngModel)]="incidentForm.type" (ngModelChange)="onIncidentTypeChanged($event)">
               @for (type of incidentTypes; track type.value) {
                 <option [value]="type.value">{{ type.label }}</option>
               }
             </select>
           </label>
 
-          <label>
-            Sector
-            <select name="incidentSector" [(ngModel)]="incidentForm.sectorNumber">
-              @for (sector of sectorOptions; track sector.sectorNumber) {
-                <option [ngValue]="sector.sectorNumber">Sector {{ sector.sectorNumber }}</option>
-              }
-            </select>
-          </label>
+          @if (incidentUsesLocation) {
+            <label>
+              Sector
+              <select name="incidentSector" [(ngModel)]="incidentForm.sectorNumber">
+                @for (sector of sectorOptions; track sector.sectorNumber) {
+                  <option [ngValue]="sector.sectorNumber">Sector {{ sector.sectorNumber }}</option>
+                }
+              </select>
+            </label>
 
-          <label>
-            Track position
-            <select name="trackPosition" [(ngModel)]="incidentForm.position">
-              @for (position of trackPositions; track position.value) {
-                <option [value]="position.value">{{ position.label }}</option>
-              }
-            </select>
-          </label>
+            <label>
+              Track position
+              <select name="trackPosition" [(ngModel)]="incidentForm.position">
+                @for (position of trackPositions; track position.value) {
+                  <option [value]="position.value">{{ position.label }}</option>
+                }
+              </select>
+            </label>
 
-          <div class="check-grid">
-            <label><input name="blocked" type="checkbox" [(ngModel)]="incidentForm.blocked" /> Blocked</label>
-            <label><input name="debris" type="checkbox" [(ngModel)]="incidentForm.debris" /> Debris</label>
-            <label><input name="marshals" type="checkbox" [(ngModel)]="incidentForm.marshals" /> Marshals</label>
-            <label><input name="medicalTeam" type="checkbox" [(ngModel)]="incidentForm.medicalTeam" /> Medical team</label>
-          </div>
+            <div class="check-grid">
+              <label><input name="blocked" type="checkbox" [(ngModel)]="incidentForm.blocked" /> Blocked</label>
+              <label><input name="marshals" type="checkbox" [(ngModel)]="incidentForm.marshals" /> Marshals</label>
+              @if (incidentShowsMedicalTeam) {
+                <label><input name="medicalTeam" type="checkbox" [(ngModel)]="incidentForm.medicalTeam" /> Medical team</label>
+              }
+            </div>
+          } @else {
+            <div class="info-strip">Extreme weather is evaluated as a race-wide condition.</div>
+          }
 
           <button type="button" (click)="evaluateSituation()" [disabled]="loading">Evaluate Situation</button>
         </form>
       </aside>
 
-      <aside class="panel violation-panel">
+      <aside class="panel recovery-panel">
         <div class="panel-heading">
           <div>
-            <p class="section-label">Driver</p>
-            <h2>Violation Report</h2>
+            <p class="section-label">Recovery</p>
+            <h2>Track Recovery</h2>
           </div>
         </div>
 
         <form class="facts-form">
           <label>
-            Driver
-            <select name="violationDriver" [(ngModel)]="violationForm.driverCode">
-              @for (driver of driverOptions; track driver.code) {
-                <option [value]="driver.code">{{ driver.code }} - {{ driver.name }}</option>
-              }
-            </select>
-          </label>
-
-          <label>
-            Violation type
-            <select name="violationType" [(ngModel)]="violationForm.violationType">
-              @for (type of violationTypes; track type.value) {
-                <option [value]="type.value">{{ type.label }}</option>
-              }
-            </select>
-          </label>
-
-          <label>
             Sector
-            <select name="violationSector" [(ngModel)]="violationForm.sectorNumber">
+            <select name="recoverySector" [(ngModel)]="recoveryForm.sectorNumber">
               @for (sector of sectorOptions; track sector.sectorNumber) {
                 <option [ngValue]="sector.sectorNumber">Sector {{ sector.sectorNumber }}</option>
               }
             </select>
           </label>
 
-          @if (violationForm.violationType === 'TRACK_LIMITS') {
-            <label>
-              Track limits count
-              <select name="trackLimitsCount" [(ngModel)]="violationForm.trackLimitsCount">
-                <option [ngValue]="0">0</option>
-                <option [ngValue]="1">1</option>
-                <option [ngValue]="2">2</option>
-                <option [ngValue]="3">3</option>
-              </select>
-            </label>
-          }
+          <div class="check-grid">
+            <label><input name="recoverBlocked" type="checkbox" [(ngModel)]="recoveryForm.blocked" /> Blocked clear</label>
+            <label><input name="recoverDebris" type="checkbox" [(ngModel)]="recoveryForm.debris" /> Debris clear</label>
+            <label><input name="recoverStoppedVehicle" type="checkbox" [(ngModel)]="recoveryForm.stoppedVehicle" /> Vehicle removed</label>
+            <label><input name="recoverMarshals" type="checkbox" [(ngModel)]="recoveryForm.marshals" /> Marshals clear</label>
+            <label><input name="recoverMedicalTeam" type="checkbox" [(ngModel)]="recoveryForm.medicalTeam" /> Medical team clear</label>
+          </div>
 
-          <label class="single-check"><input name="repeatedViolation" type="checkbox" [(ngModel)]="violationForm.repeated" /> Repeated violation</label>
-
-          <button type="button" (click)="evaluateDriver()" [disabled]="loading">Evaluate Driver</button>
+          <div class="recovery-actions">
+            <button type="button" (click)="clearSelectedSector()" [disabled]="loading">Update Sector</button>
+            <button type="button" class="secondary" (click)="resolveAllIncidents()" [disabled]="loading">Resolve All Incidents</button>
+          </div>
         </form>
       </aside>
 
@@ -221,6 +223,10 @@
             <strong>{{ selectedDecision?.safetyCarStatus ?? '-' }}</strong>
           </div>
           <div>
+            <span>Restart status</span>
+            <strong>{{ selectedDecision?.restartStatus ?? '-' }}</strong>
+          </div>
+          <div>
             <span>Reason</span>
             <p>{{ selectedDecision?.explanation ?? 'No current recommendation.' }}</p>
           </div>
@@ -233,6 +239,68 @@
           <button type="button" class="secondary" (click)="resetRace()" [disabled]="loading">Reset Race</button>
         </div>
       </section>
+
+      <aside class="panel violation-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-label">Driver</p>
+            <h2>Violation Report</h2>
+          </div>
+        </div>
+
+        <form class="facts-form">
+          <label>
+            Driver
+            <select name="violationDriver" [(ngModel)]="violationForm.driverCode">
+              @for (driver of driverOptions; track driver.code) {
+                <option [value]="driver.code">{{ driver.code }} - {{ driver.name }}</option>
+              }
+            </select>
+          </label>
+
+          <label>
+            Violation type
+            <select name="violationType" [(ngModel)]="violationForm.violationType" (ngModelChange)="onViolationTypeChanged($event)">
+              @for (type of violationTypes; track type.value) {
+                <option [value]="type.value">{{ type.label }}</option>
+              }
+            </select>
+          </label>
+
+          @if (showSafetyCarHint) {
+            <div class="info-strip">Safety Car is not currently active. The report will still be evaluated as a Safety Car infringement for demo/testing.</div>
+          }
+
+          @if (violationUsesSector) {
+            <label>
+              Sector
+              <select name="violationSector" [(ngModel)]="violationForm.sectorNumber">
+                @for (sector of sectorOptions; track sector.sectorNumber) {
+                  <option [ngValue]="sector.sectorNumber">Sector {{ sector.sectorNumber }}</option>
+                }
+              </select>
+            </label>
+          }
+
+          @if (isTrackLimitsViolation) {
+            <label>
+              Track limits offence
+              <select name="trackLimitsCount" [(ngModel)]="violationForm.trackLimitsCount">
+                <option [ngValue]="1">1st track limits</option>
+                <option [ngValue]="2">2nd track limits</option>
+                <option [ngValue]="3">3rd track limits</option>
+                <option [ngValue]="4">Further track limits</option>
+              </select>
+            </label>
+          }
+
+          @if (!isTrackLimitsViolation) {
+            <label class="single-check"><input name="repeatedViolation" type="checkbox" [(ngModel)]="violationForm.repeated" /> Repeated violation</label>
+          }
+
+          <button type="button" (click)="evaluateDriver()" [disabled]="loading">Evaluate Driver</button>
+        </form>
+      </aside>
 
       <aside class="panel simulation-panel">
         <div class="panel-heading">
@@ -309,20 +377,6 @@
         </div>
       </aside>
 
-      <section class="panel log-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="section-label">Log</p>
-            <h2>Decision Timeline</h2>
-          </div>
-        </div>
-
-        <ol>
-          @for (event of events; track event) {
-            <li>{{ event }}</li>
-          }
-        </ol>
-      </section>
     </div>
   </section>
 </main>

@@ -68,6 +68,7 @@ h3 {
 .clock-tile,
 .lap-tile {
   padding: 14px;
+  min-width: 0;
 }
 
 .status-tile span,
@@ -86,6 +87,53 @@ h3 {
 .status-tile strong,
 .clock-tile strong {
   font-size: 18px;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
+}
+
+.flag-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.flag-dot {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(23, 32, 43, 0.16);
+  border-radius: 50%;
+  background: #9aa4b2;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+.flag-green {
+  background: #22a06b;
+}
+
+.flag-yellow {
+  background: linear-gradient(135deg, #f2c94c 0 50%, #17202b 50% 100%);
+}
+
+.flag-double-yellow {
+  background: #f2c94c;
+}
+
+.flag-red {
+  background: #d92d20;
+}
+
+.flag-blue {
+  background: #2f80ed;
+}
+
+.flag-black,
+.flag-black-orange {
+  background: #17202b;
+}
+
+.flag-none {
+  background: #9aa4b2;
 }
 
 .lap-tile {
@@ -212,12 +260,20 @@ h3 {
   border-color: #22a06b;
 }
 
+.sector-card.sector-yellow {
+  border-color: #f2c94c;
+}
+
 .sector-card.sector-double-yellow {
   border-color: #f59e0b;
 }
 
 .sector-card.sector-vsc {
   border-color: #2f80ed;
+}
+
+.sector-card.sector-red {
+  border-color: #d92d20;
 }
 
 .facts-form {
@@ -270,6 +326,22 @@ select {
   border-radius: 6px;
   padding: 10px;
   background: #f7f9fb;
+}
+
+.info-strip {
+  border: 1px solid #d8dee6;
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: #f7f9fb;
+  color: #4f5b68;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.recovery-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 
 button {

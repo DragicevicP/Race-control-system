@@ -30,7 +30,10 @@ end
 rule "Partially blocked sector marks race status as partially blocked"
 salience 60
 when
-    $raceStatus : RaceStatus(trackStatus != TrackStatus.FULLY_BLOCKED)
+    $raceStatus : RaceStatus(
+        trackStatus != TrackStatus.FULLY_BLOCKED,
+        trackStatus != TrackStatus.PARTIALLY_BLOCKED
+    )
     TrackSector(partiallyBlocked == true)
 then
     modify($raceStatus) {
@@ -41,7 +44,7 @@ end
 rule "Fully blocked sector marks race status as fully blocked"
 salience 65
 when
-    $raceStatus : RaceStatus()
+    $raceStatus : RaceStatus(trackStatus != TrackStatus.FULLY_BLOCKED)
     TrackSector(blocked == true)
 then
     modify($raceStatus) {
@@ -131,6 +134,29 @@ then
         setSafetyCarStatus(SafetyCarStatus.NONE),
         setRestartStatus(RestartStatus.RACE_RESTARTED),
         setExplanation("Track is safe and restart procedure is complete. Race restart is recommended.")
+    }
+end
+
+rule "Safe track after red flag recommends race restart"
+salience 35
+when
+    RaceStatus(
+        trackStatus == TrackStatus.SAFE,
+        currentDecision != null,
+        currentDecision.recommendedFlag == FlagType.RED
+    )
+    $decision : RaceControlDecision(
+        recommendedFlag == null,
+        safetyCarStatus == null,
+        restartStatus == null
+    )
+then
+    $decision.getReasons().add("Track is safe after red flag.");
+    modify($decision) {
+        setRecommendedFlag(FlagType.GREEN),
+        setSafetyCarStatus(SafetyCarStatus.NONE),
+        setRestartStatus(RestartStatus.RACE_RESTARTED),
+        setExplanation("Track is safe after red flag. Race restart is recommended.")
     }
 end
 

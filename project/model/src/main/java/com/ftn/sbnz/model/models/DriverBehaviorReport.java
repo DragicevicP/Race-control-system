@@ -18,6 +18,7 @@ public class DriverBehaviorReport {
     private boolean causingCollision;
     private int trackLimitsCount;
     private LocalDateTime time;
+    private boolean repeatedRequested;
     private boolean processed;
 
     public DriverBehaviorReport() {
@@ -26,7 +27,7 @@ public class DriverBehaviorReport {
     public DriverBehaviorReport(Driver driver, FlagType activeFlag, SafetyCarStatus safetyCarStatus,
             boolean didNotSlow, boolean overtook, boolean unsafeRelease, boolean pitSpeeding,
             boolean dangerousDriving, boolean causingCollision, int trackLimitsCount, LocalDateTime time,
-            boolean processed) {
+            boolean repeatedRequested, boolean processed) {
         this.driver = driver;
         this.activeFlag = activeFlag;
         this.safetyCarStatus = safetyCarStatus;
@@ -38,6 +39,7 @@ public class DriverBehaviorReport {
         this.causingCollision = causingCollision;
         this.trackLimitsCount = trackLimitsCount;
         this.time = time;
+        this.repeatedRequested = repeatedRequested;
         this.processed = processed;
     }
 
@@ -127,6 +129,14 @@ public class DriverBehaviorReport {
 
     public void setTime(LocalDateTime time) {
         this.time = time;
+    }
+
+    public boolean isRepeatedRequested() {
+        return repeatedRequested;
+    }
+
+    public void setRepeatedRequested(boolean repeatedRequested) {
+        this.repeatedRequested = repeatedRequested;
     }
 
     public boolean isProcessed() {
