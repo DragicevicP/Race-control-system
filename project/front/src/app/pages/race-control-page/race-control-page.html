@@ -1,17 +1,333 @@
 <main class="race-control-page">
-  <header class="page-header">
+  <header class="top-bar">
     <div>
       <p class="eyebrow">Race Control System</p>
       <h1>Race Control Dashboard</h1>
     </div>
-    <div class="status-pill">Ready</div>
+
+    <section class="session-strip" aria-label="Current race status">
+      <div class="status-tile">
+        <span>Session</span>
+        <strong>VSC</strong>
+      </div>
+      <div class="status-tile">
+        <span>Flag</span>
+        <strong>Double Yellow</strong>
+      </div>
+      <div class="status-tile">
+        <span>Safety Car</span>
+        <strong>VSC</strong>
+      </div>
+      <div class="clock-tile">
+        <span>Simulation Clock</span>
+        <strong>00:12:15</strong>
+      </div>
+      <div class="lap-tile">
+        <span>Lap</span>
+        <strong>25/53</strong>
+      </div>
+    </section>
   </header>
 
-  <section class="placeholder-panel">
-    <h2>Control room layout starts here</h2>
-    <p>
-      This page will contain the race status header, track sectors, driver table,
-      decision panel, event log, and CEP simulation clock.
-    </p>
+  <section class="dashboard-grid">
+    <div class="main-column">
+      <section class="panel track-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-label">Track Map</p>
+            <h2>Autodromo Nazionale Monza</h2>
+          </div>
+          <span class="mini-status">Live state</span>
+        </div>
+
+        <div class="track-map" aria-label="Track sector overview">
+          <figure class="track-figure">
+            <img
+              src="/tracks/monza.png"
+              alt="Monza Circuit track map"
+            />
+          </figure>
+
+          <div class="sector-list">
+            @for (sector of sectors; track sector.id) {
+              <article [class]="'sector-card ' + sectorClass(sector.status)">
+                <span>{{ sector.name }}</span>
+                <strong>{{ sector.status }}</strong>
+                <small>{{ sector.note }}</small>
+              </article>
+            }
+          </div>
+        </div>
+      </section>
+
+      <section class="panel drivers-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-label">Drivers</p>
+            <h2>Race Control Table</h2>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Pos</th>
+              <th>Driver</th>
+              <th>Team</th>
+              <th>Gap</th>
+              <th>Warnings</th>
+              <th>Penalty</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (driver of drivers; track driver.code) {
+              <tr>
+                <td>{{ driver.position }}</td>
+                <td><strong>{{ driver.code }}</strong></td>
+                <td>{{ driver.team }}</td>
+                <td>{{ driver.gap }}</td>
+                <td>{{ driver.warnings }}</td>
+                <td>{{ driver.penalty }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </section>
+
+    </div>
+
+    <div class="side-column">
+      <aside class="panel facts-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-label">Input</p>
+            <h2>Incident Facts</h2>
+          </div>
+        </div>
+
+        <form class="facts-form">
+          <label>
+            Incident type
+            <select>
+              <option>Stopped vehicle</option>
+              <option>Crash</option>
+              <option>Debris</option>
+              <option>Weather</option>
+              <option>Fluid leak</option>
+            </select>
+          </label>
+
+          <label>
+            Sector
+            <select>
+              <option>Sector 1</option>
+              <option>Sector 2</option>
+              <option>Sector 3</option>
+            </select>
+          </label>
+
+          <label>
+            Track position
+            <select>
+              <option>Racing line</option>
+              <option>Track edge</option>
+              <option>Off racing line</option>
+            </select>
+          </label>
+
+          <div class="check-grid">
+            <label><input type="checkbox" /> Blocked</label>
+            <label><input type="checkbox" checked /> Debris</label>
+            <label><input type="checkbox" /> Marshals</label>
+            <label><input type="checkbox" /> Medical team</label>
+          </div>
+
+          <button type="button">Evaluate Situation</button>
+        </form>
+      </aside>
+
+      <aside class="panel violation-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-label">Driver</p>
+            <h2>Violation Report</h2>
+          </div>
+        </div>
+
+        <form class="facts-form">
+          <label>
+            Driver
+            <select>
+              <option>VER - Max Verstappen</option>
+              <option>LEC - Charles Leclerc</option>
+              <option>NOR - Lando Norris</option>
+              <option>ALB - Alex Albon</option>
+            </select>
+          </label>
+
+          <label>
+            Violation type
+            <select>
+              <option>Track limits</option>
+              <option>Overtaking under yellow</option>
+              <option>Did not slow under yellow</option>
+              <option>Overtaking under safety car</option>
+              <option>Safety car infringement</option>
+              <option>Unsafe release</option>
+              <option>Pit speeding</option>
+              <option>Causing collision</option>
+              <option>Dangerous driving</option>
+            </select>
+          </label>
+
+          <label>
+            Sector
+            <select>
+              <option>Sector 1</option>
+              <option>Sector 2</option>
+              <option>Sector 3</option>
+            </select>
+          </label>
+
+          <label>
+            Track limits count
+            <select>
+              <option>0</option>
+              <option>1</option>
+              <option>2</option>
+              <option>3</option>
+            </select>
+          </label>
+
+          <label class="single-check"><input type="checkbox" /> Repeated violation</label>
+
+          <button type="button">Evaluate Driver</button>
+        </form>
+      </aside>
+
+      <section class="panel decision-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-label">Recommendation</p>
+            <h2>System Decision</h2>
+          </div>
+          <span class="decision-badge">Pending apply</span>
+        </div>
+
+        <div class="decision-summary">
+          <div>
+            <span>Recommended flag</span>
+            <strong>Double Yellow</strong>
+          </div>
+          <div>
+            <span>Safety car status</span>
+            <strong>VSC</strong>
+          </div>
+          <div>
+            <span>Reason</span>
+            <p>Medium danger detected in Sector 2. Double yellow is recommended while the sector remains affected.</p>
+          </div>
+        </div>
+
+        <div class="decision-actions">
+          <button type="button">Evaluate Race State</button>
+          <button type="button">Apply Recommendation</button>
+          <button type="button" class="secondary">Clear</button>
+          <button type="button" class="secondary">Reset Race</button>
+        </div>
+      </section>
+
+      <aside class="panel simulation-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-label">CEP</p>
+            <h2>Simulation Clock</h2>
+          </div>
+        </div>
+
+        <div class="clock-face">00:12:15</div>
+        <div class="clock-actions">
+          <button type="button">+1s</button>
+          <button type="button">+5s</button>
+          <button type="button">+10s</button>
+        </div>
+
+        <div class="cep-controls">
+          <section class="cep-control-group">
+            <h3>Blue Flag</h3>
+            <label>
+              Driver
+              <select>
+                <option>ALB - Alex Albon</option>
+                <option>VER - Max Verstappen</option>
+                <option>LEC - Charles Leclerc</option>
+                <option>NOR - Lando Norris</option>
+              </select>
+            </label>
+            <div class="check-grid">
+              <label><input type="checkbox" checked /> Active</label>
+              <label><input type="checkbox" /> Passed faster car</label>
+            </div>
+            <label>
+              Warning count
+              <select>
+                <option>0</option>
+                <option>1</option>
+                <option>2</option>
+              </select>
+            </label>
+          </section>
+
+          <section class="cep-control-group">
+            <h3>VSC Delta</h3>
+            <label>
+              Driver
+              <select>
+                <option>LEC - Charles Leclerc</option>
+                <option>VER - Max Verstappen</option>
+                <option>NOR - Lando Norris</option>
+                <option>ALB - Alex Albon</option>
+              </select>
+            </label>
+            <label>
+              Delta status
+              <select>
+                <option>RED</option>
+                <option>GREEN</option>
+              </select>
+            </label>
+            <label class="single-check"><input type="checkbox" checked /> Active monitoring</label>
+          </section>
+        </div>
+
+        <button type="button" class="wide-action">Evaluate CEP</button>
+
+        <div class="monitor-list">
+          <div>
+            <span>Blue flag</span>
+            <strong>ALB active</strong>
+          </div>
+          <div>
+            <span>VSC delta</span>
+            <strong>LEC red</strong>
+          </div>
+        </div>
+      </aside>
+
+      <section class="panel log-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-label">Log</p>
+            <h2>Decision Timeline</h2>
+          </div>
+        </div>
+
+        <ol>
+          @for (event of events; track event) {
+            <li>{{ event }}</li>
+          }
+        </ol>
+      </section>
+    </div>
   </section>
 </main>
