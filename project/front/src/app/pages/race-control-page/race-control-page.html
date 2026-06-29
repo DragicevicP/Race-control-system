@@ -271,6 +271,14 @@
             <div class="info-strip">Safety Car is not currently active. The report will still be evaluated as a Safety Car infringement for demo/testing.</div>
           }
 
+          @if (showSingleYellowHint) {
+            <div class="info-strip">Single yellow is not currently active in the selected sector. The report will still be evaluated as a yellow flag infringement for demo/testing.</div>
+          }
+
+          @if (showDoubleYellowHint) {
+            <div class="info-strip">Double yellow is not currently active in the selected sector. The report will still be evaluated as a double yellow infringement for demo/testing.</div>
+          }
+
           @if (violationUsesSector) {
             <label>
               Sector
@@ -312,9 +320,14 @@
 
         <div class="clock-face">{{ simulationClock }}</div>
         <div class="clock-actions">
+          <button type="button" class="clock-toggle" (click)="toggleClock()" [disabled]="loading">
+            {{ clockRunning ? 'Pause' : 'Play' }}
+          </button>
           <button type="button" (click)="advanceClock(1)" [disabled]="loading">+1s</button>
           <button type="button" (click)="advanceClock(5)" [disabled]="loading">+5s</button>
           <button type="button" (click)="advanceClock(10)" [disabled]="loading">+10s</button>
+          <button type="button" (click)="advanceClock(20)" [disabled]="loading">+20s</button>
+          <button type="button" (click)="advanceClock(30)" [disabled]="loading">+30s</button>
         </div>
 
         <div class="cep-controls">
@@ -328,52 +341,76 @@
                 }
               </select>
             </label>
-            <div class="check-grid">
-              <label><input name="blueFlagActive" type="checkbox" [(ngModel)]="blueFlagForm.active" /> Active</label>
-              <label><input name="passedFasterCar" type="checkbox" [(ngModel)]="blueFlagForm.passedFasterCar" /> Passed faster car</label>
+            <div class="cep-action-row">
+              <button
+                type="button"
+                (click)="startBlueFlagMonitoring()"
+                [disabled]="loading || selectedDriverHasActiveBlueFlag"
+              >
+                Show Blue Flag
+              </button>
+              <button type="button" class="secondary" (click)="markFasterCarPassed()" [disabled]="loading">Faster Car Passed</button>
             </div>
-            <label>
-              Warning count
-              <select name="blueFlagWarningCount" [(ngModel)]="blueFlagForm.warningCount">
-                <option [ngValue]="0">0</option>
-                <option [ngValue]="1">1</option>
-                <option [ngValue]="2">2</option>
-              </select>
-            </label>
+
+            <div class="monitor-list compact-monitor-list">
+              @if (activeBlueFlagMonitorings.length) {
+                @for (monitoring of activeBlueFlagMonitorings; track monitoring.driver?.code) {
+                  <div>
+                    <span>{{ monitoring.driver?.code }} blue flag</span>
+                    <strong>Warnings {{ monitoring.warningCount ?? 0 }}</strong>
+                  </div>
+                }
+              } @else {
+                <div>
+                  <span>Blue flag</span>
+                  <strong>None active</strong>
+                </div>
+              }
+            </div>
           </section>
 
           <section class="cep-control-group">
             <h3>VSC Delta</h3>
-            <label>
-              Driver
-              <select name="vscDriver" [(ngModel)]="vscDeltaForm.driverCode">
-                @for (driver of driverOptions; track driver.code) {
-                  <option [value]="driver.code">{{ driver.code }} - {{ driver.name }}</option>
+            @if (!isVscCurrentlyActive) {
+              <div class="info-strip">VSC delta monitoring becomes available when VSC is active.</div>
+            }
+
+            <div class="monitor-list compact-monitor-list delta-list">
+              @if (activeVscDeltaMonitorings.length) {
+                @for (monitoring of activeVscDeltaMonitorings; track monitoring.driver?.code) {
+                  <div [class]="'delta-monitor delta-' + (monitoring.deltaStatus ?? 'GREEN').toLowerCase()">
+                    <span>{{ monitoring.driver?.code }}</span>
+                    <strong>
+                      {{ monitoring.deltaStatus ?? 'GREEN' }}
+                    </strong>
+                    <div class="delta-actions">
+                      <button
+                        type="button"
+                        class="delta-green-button"
+                        (click)="setVscDeltaStatus(monitoring.driver?.code, 'GREEN')"
+                        [disabled]="loading"
+                      >
+                        GREEN
+                      </button>
+                      <button
+                        type="button"
+                        class="delta-red-button"
+                        (click)="setVscDeltaStatus(monitoring.driver?.code, 'RED')"
+                        [disabled]="loading"
+                      >
+                        RED
+                      </button>
+                    </div>
+                  </div>
                 }
-              </select>
-            </label>
-            <label>
-              Delta status
-              <select name="deltaStatus" [(ngModel)]="vscDeltaForm.deltaStatus">
-                <option value="RED">RED</option>
-                <option value="GREEN">GREEN</option>
-              </select>
-            </label>
-            <label class="single-check"><input name="vscActive" type="checkbox" [(ngModel)]="vscDeltaForm.active" /> Active monitoring</label>
+              } @else {
+                <div>
+                  <span>VSC delta</span>
+                  <strong>None active</strong>
+                </div>
+              }
+            </div>
           </section>
-        </div>
-
-        <button type="button" class="wide-action" (click)="evaluateCep()" [disabled]="loading">Evaluate CEP</button>
-
-        <div class="monitor-list">
-          <div>
-            <span>Blue flag</span>
-            <strong>{{ blueFlagMonitorLabel }}</strong>
-          </div>
-          <div>
-            <span>VSC delta</span>
-            <strong>{{ vscDeltaMonitorLabel }}</strong>
-          </div>
         </div>
       </aside>
 

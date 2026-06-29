@@ -230,6 +230,10 @@ public class RaceRuleService {
         }
 
         for (BlueFlagMonitoring monitoring : safeList(raceStatus.getBlueFlagMonitorings())) {
+            Driver stateDriver = findStateDriver(raceStatus, monitoring.getDriver());
+            if (stateDriver != null) {
+                monitoring.setDriver(stateDriver);
+            }
             insertFact(kieSession, insertedFacts, monitoring);
             if (monitoring.getDriver() != null) {
                 ensureDriverViolationList(monitoring.getDriver());
@@ -238,12 +242,33 @@ public class RaceRuleService {
         }
 
         for (VscDeltaMonitoring monitoring : safeList(raceStatus.getVscDeltaMonitorings())) {
+            Driver stateDriver = findStateDriver(raceStatus, monitoring.getDriver());
+            if (stateDriver != null) {
+                monitoring.setDriver(stateDriver);
+            }
             insertFact(kieSession, insertedFacts, monitoring);
             if (monitoring.getDriver() != null) {
                 ensureDriverViolationList(monitoring.getDriver());
                 insertFact(kieSession, insertedFacts, monitoring.getDriver());
             }
         }
+    }
+
+    private Driver findStateDriver(RaceStatus raceStatus, Driver driver) {
+        if (raceStatus == null || driver == null) {
+            return null;
+        }
+
+        for (Driver stateDriver : safeList(raceStatus.getDrivers())) {
+            if (driver.getCode() != null && driver.getCode().equals(stateDriver.getCode())) {
+                return stateDriver;
+            }
+            if (driver.getId() != null && driver.getId().equals(stateDriver.getId())) {
+                return stateDriver;
+            }
+        }
+
+        return null;
     }
 
     private void insertFact(KieSession kieSession, Set<Object> insertedFacts, Object fact) {

@@ -14,11 +14,12 @@ when
     )
 then
     modify($monitoring) {
+        setWarningCount(0),
         setActive(false)
     }
 end
 
-rule "Blue flag timeout creates first violation"
+rule "Blue flag timeout creates first warning"
 salience 50
 when
     RaceStatus($now : simulationTime != null)
@@ -30,40 +31,15 @@ when
         $shownAt : blueFlagShownAt,
         $driver : driver
     )
-    eval(Duration.between($shownAt, $now).getSeconds() >= 10)
-    not DriverViolation(
-        driver == $driver,
-        violation.code == "IGNORING_BLUE_FLAG"
-    )
+    eval(Duration.between($shownAt, $now).getSeconds() >= 20)
 then
-    Violation violation = new Violation(
-        "IGNORING_BLUE_FLAG",
-        "Ignoring blue flag",
-        "Driver did not allow the faster car to pass within the allowed blue flag window.",
-        ViolationSeverity.LOW,
-        null
-    );
-
-    DriverViolation driverViolation = new DriverViolation(
-        null,
-        $driver,
-        violation,
-        ViolationSeverity.LOW,
-        false,
-        null,
-        $now
-    );
-
-    $driver.getViolations().add(driverViolation);
-    insert(driverViolation);
-
     modify($monitoring) {
         setWarningCount(1),
-        setActive(false)
+        setBlueFlagShownAt($now)
     }
 end
 
-rule "Blue flag timeout creates repeated violation"
+rule "Blue flag timeout creates second warning"
 salience 50
 when
     RaceStatus($now : simulationTime != null)
@@ -71,16 +47,36 @@ when
         active == true,
         passedFasterCar == false,
         blueFlagShownAt != null,
-        warningCount > 0,
+        warningCount == 1,
         $shownAt : blueFlagShownAt,
         $driver : driver
     )
-    eval(Duration.between($shownAt, $now).getSeconds() >= 10)
+    eval(Duration.between($shownAt, $now).getSeconds() >= 20)
+then
+    modify($monitoring) {
+        setWarningCount(2),
+        setBlueFlagShownAt($now)
+    }
+end
+
+rule "Blue flag third timeout creates violation"
+salience 50
+when
+    RaceStatus($now : simulationTime != null)
+    $monitoring : BlueFlagMonitoring(
+        active == true,
+        passedFasterCar == false,
+        blueFlagShownAt != null,
+        warningCount >= 2,
+        $shownAt : blueFlagShownAt,
+        $driver : driver
+    )
+    eval(Duration.between($shownAt, $now).getSeconds() >= 20)
 then
     Violation violation = new Violation(
         "IGNORING_BLUE_FLAG",
-        "Repeated ignoring blue flag",
-        "Driver repeatedly failed to allow the faster car to pass after blue flag.",
+        "Ignoring blue flag",
+        "Driver failed to allow the faster car to pass after two blue flag warnings.",
         ViolationSeverity.MEDIUM,
         null
     );
@@ -99,7 +95,7 @@ then
     insert(driverViolation);
 
     modify($monitoring) {
-        setWarningCount($monitoring.getWarningCount() + 1),
+        setWarningCount(0),
         setActive(false)
     }
 end

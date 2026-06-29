@@ -30,7 +30,7 @@ when
         $redSince : deltaRedSince,
         $driver : driver
     )
-    eval(Duration.between($redSince, $now).getSeconds() >= 5)
+    eval(Duration.between($redSince, $now).getSeconds() >= 10)
     not DriverViolation(
         driver == $driver,
         violation.code == "VSC_DELTA_INFRINGEMENT"
@@ -58,7 +58,7 @@ then
     insert(driverViolation);
 
     modify($monitoring) {
-        setActive(false)
+        setDeltaRedSince($now)
     }
 end
 
@@ -73,7 +73,7 @@ when
         $redSince : deltaRedSince,
         $driver : driver
     )
-    eval(Duration.between($redSince, $now).getSeconds() >= 5)
+    eval(Duration.between($redSince, $now).getSeconds() >= 10)
     DriverViolation(
         driver == $driver,
         violation.code == "VSC_DELTA_INFRINGEMENT"
@@ -101,6 +101,6 @@ then
     insert(driverViolation);
 
     modify($monitoring) {
-        setActive(false)
+        setDeltaRedSince($now)
     }
 end

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
   BlueFlagMonitoring,
@@ -38,11 +38,16 @@ interface DriverView {
   templateUrl: './race-control-page.html',
   styleUrl: './race-control-page.css',
 })
-export class RaceControlPage implements OnInit {
+export class RaceControlPage implements OnInit, OnDestroy {
   protected raceStatus?: RaceStatus;
   protected currentDecision?: RaceControlDecision;
   protected loading = false;
   protected errorMessage = '';
+  protected clockRunning = false;
+  private clockTimer?: ReturnType<typeof setInterval>;
+  private clockAdvanceInFlight = false;
+  private vscDeltaSyncInFlight = false;
+  private stateMutationVersion = 0;
 
   protected incidentForm = {
     type: 'DEBRIS' as IncidentType,
@@ -74,15 +79,6 @@ export class RaceControlPage implements OnInit {
 
   protected blueFlagForm = {
     driverCode: 'PER',
-    active: true,
-    passedFasterCar: false,
-    warningCount: 1,
-  };
-
-  protected vscDeltaForm = {
-    driverCode: 'LEC',
-    deltaStatus: 'RED' as 'RED' | 'GREEN',
-    active: true,
   };
 
   protected readonly incidentTypes = [
@@ -119,6 +115,10 @@ export class RaceControlPage implements OnInit {
     this.loadRaceState();
   }
 
+  ngOnDestroy(): void {
+    this.stopClock();
+  }
+
   protected get sectors(): SectorView[] {
     return (this.raceStatus?.sectors ?? []).map((sector) => ({
       id: sector.sectorNumber,
@@ -136,7 +136,7 @@ export class RaceControlPage implements OnInit {
         code: driver.code ?? '-',
         team: this.shortTeam(driver.team),
         gap: driver.gap ?? '-',
-        warnings: driver.warningCount ?? 0,
+        warnings: (driver.warningCount ?? 0) + this.activeBlueFlagWarnings(driver.code),
         penalty: this.driverPenaltyLabel(driver),
       }));
   }
@@ -199,7 +199,23 @@ export class RaceControlPage implements OnInit {
 
   protected get blueFlagMonitorLabel(): string {
     const active = (this.raceStatus?.blueFlagMonitorings ?? []).find((monitoring) => monitoring.active);
-    return active?.driver?.code ? `${active.driver.code} active` : 'None active';
+    if (active?.driver?.code) {
+      return `${active.driver.code} active, warnings ${active.warningCount ?? 0}`;
+    }
+
+    const monitorings = this.raceStatus?.blueFlagMonitorings ?? [];
+    const latest = monitorings[monitorings.length - 1];
+    return latest?.driver?.code ? `${latest.driver.code} inactive, warnings ${latest.warningCount ?? 0}` : 'None active';
+  }
+
+  protected get activeBlueFlagMonitorings(): BlueFlagMonitoring[] {
+    return (this.raceStatus?.blueFlagMonitorings ?? []).filter((monitoring) => monitoring.active);
+  }
+
+  protected get selectedDriverHasActiveBlueFlag(): boolean {
+    return this.activeBlueFlagMonitorings.some(
+      (monitoring) => monitoring.driver?.code === this.blueFlagForm.driverCode
+    );
   }
 
   protected get vscDeltaMonitorLabel(): string {
@@ -207,10 +223,23 @@ export class RaceControlPage implements OnInit {
     return active?.driver?.code ? `${active.driver.code} ${active.deltaStatus?.toLowerCase() ?? ''}` : 'None active';
   }
 
+  protected get activeVscDeltaMonitorings(): VscDeltaMonitoring[] {
+    return [...(this.raceStatus?.vscDeltaMonitorings ?? [])]
+      .filter((monitoring) => monitoring.active)
+      .sort((a, b) => (a.driver?.position ?? 0) - (b.driver?.position ?? 0));
+  }
+
+  protected get isVscCurrentlyActive(): boolean {
+    return this.raceStatus?.status === 'VSC';
+  }
+
   protected loadRaceState(): void {
     this.loading = true;
     this.raceControlService.getRaceState().subscribe({
-      next: (raceStatus) => this.setRaceState(raceStatus),
+      next: (raceStatus) => {
+        this.setRaceState(raceStatus);
+        this.startClock();
+      },
       error: () => this.showError('Backend state could not be loaded.'),
     });
   }
@@ -259,8 +288,7 @@ export class RaceControlPage implements OnInit {
       return;
     }
 
-    this.applyRecoveryToSector(sector);
-    this.markClearSectorsGreen(raceStatus);
+    this.applyRecoveryToSector(sector, raceStatus);
     raceStatus.incidents = (raceStatus.incidents ?? []).map((incident) =>
       incident.sector?.sectorNumber === sector.sectorNumber && this.isSectorClear(sector)
         ? { ...incident, sector: { ...sector }, resolved: true }
@@ -274,20 +302,20 @@ export class RaceControlPage implements OnInit {
     const raceStatus = this.cloneState();
     raceStatus.sectors = (raceStatus.sectors ?? []).map((sector) => {
       const clearedSector = { ...sector };
-      this.resetSector(clearedSector);
+      this.resetSector(clearedSector, raceStatus);
       return clearedSector;
     });
     raceStatus.incidents = (raceStatus.incidents ?? []).map((incident) => ({
       ...incident,
-      sector: incident.sector ? this.clearedSectorCopy(incident.sector) : incident.sector,
+      sector: incident.sector ? this.clearedSectorCopy(incident.sector, raceStatus) : incident.sector,
       resolved: true,
     }));
     raceStatus.trackStatus = 'SAFE';
-    this.markClearSectorsGreen(raceStatus);
     this.replaceStateThenEvaluate(raceStatus);
   }
 
   protected evaluateRaceState(): void {
+    this.stateMutationVersion++;
     this.loading = true;
     this.raceControlService.evaluateRaceState().subscribe({
       next: (decision) => {
@@ -309,6 +337,7 @@ export class RaceControlPage implements OnInit {
       return;
     }
 
+    this.stateMutationVersion++;
     this.loading = true;
     this.raceControlService.applyDecision(decision).subscribe({
       next: (raceStatus) => {
@@ -320,6 +349,7 @@ export class RaceControlPage implements OnInit {
   }
 
   protected clearRecommendation(): void {
+    this.stateMutationVersion++;
     this.currentDecision = undefined;
     if (this.raceStatus) {
       this.raceStatus = { ...this.raceStatus, currentDecision: null };
@@ -327,22 +357,59 @@ export class RaceControlPage implements OnInit {
   }
 
   protected resetRace(): void {
+    this.stateMutationVersion++;
+    this.stopClock();
     this.loading = true;
     this.raceControlService.resetRaceState().subscribe({
       next: (raceStatus) => {
         this.currentDecision = undefined;
         this.setRaceState(raceStatus);
+        this.startClock();
       },
       error: () => this.showError('Race state could not be reset.'),
     });
   }
 
-  protected advanceClock(seconds: number): void {
-    this.loading = true;
+  protected advanceClock(seconds: number, showLoading = true): void {
+    if (!showLoading && this.clockAdvanceInFlight) {
+      return;
+    }
+
+    if (this.loading && !showLoading) {
+      this.advanceLocalClock(seconds);
+      return;
+    }
+
+    if (showLoading) {
+      this.stateMutationVersion++;
+      this.loading = true;
+    } else {
+      this.clockAdvanceInFlight = true;
+    }
+
+    const requestVersion = this.stateMutationVersion;
     this.raceControlService.advanceClock(seconds).subscribe({
-      next: (raceStatus) => this.setRaceState(raceStatus),
-      error: () => this.showError('Simulation clock could not be advanced.'),
+      next: (raceStatus) => {
+        this.clockAdvanceInFlight = false;
+        if (!showLoading && requestVersion !== this.stateMutationVersion) {
+          return;
+        }
+        this.setRaceState(raceStatus, !showLoading);
+      },
+      error: () => {
+        this.clockAdvanceInFlight = false;
+        this.showError('Simulation clock could not be advanced.');
+      },
     });
+  }
+
+  protected toggleClock(): void {
+    if (this.clockRunning) {
+      this.stopClock();
+      return;
+    }
+
+    this.startClock();
   }
 
   protected evaluateDriver(): void {
@@ -387,36 +454,91 @@ export class RaceControlPage implements OnInit {
     }
   }
 
-  protected evaluateCep(): void {
+  protected startBlueFlagMonitoring(): void {
     const raceStatus = this.cloneState();
     const blueFlagDriver = this.findDriver(this.blueFlagForm.driverCode, raceStatus);
-    const vscDriver = this.findDriver(this.vscDeltaForm.driverCode, raceStatus);
+    if (!blueFlagDriver) {
+      this.showError('Selected blue flag driver does not exist.');
+      return;
+    }
+
+    const alreadyActive = (raceStatus.blueFlagMonitorings ?? []).some(
+      (monitoring) => monitoring.driver?.code === blueFlagDriver.code && monitoring.active
+    );
+    if (alreadyActive) {
+      this.showError('Blue flag monitoring is already active for selected driver.');
+      return;
+    }
+
     const now = raceStatus.simulationTime ?? new Date().toISOString();
 
     const previousBlueFlagMonitoring = (raceStatus.blueFlagMonitorings ?? []).find(
       (monitoring) => monitoring.driver?.code === blueFlagDriver?.code
     );
-    const previousVscDeltaMonitoring = (raceStatus.vscDeltaMonitorings ?? []).find(
-      (monitoring) => monitoring.driver?.code === vscDriver?.code
+
+    raceStatus.blueFlagMonitorings = [
+      ...(raceStatus.blueFlagMonitorings ?? []).filter(
+        (monitoring) => monitoring.driver?.code !== blueFlagDriver.code
+      ),
+      this.createBlueFlagMonitoring(blueFlagDriver, now, previousBlueFlagMonitoring),
+    ];
+
+    this.startClock();
+    this.saveStateThenEvaluateCep(raceStatus, 'Blue flag monitoring could not be started.');
+  }
+
+  protected markFasterCarPassed(): void {
+    const raceStatus = this.cloneState();
+    const monitoring = (raceStatus.blueFlagMonitorings ?? []).find(
+      (item) => item.driver?.code === this.blueFlagForm.driverCode && item.active
     );
 
-    raceStatus.blueFlagMonitorings = blueFlagDriver
-      ? [this.createBlueFlagMonitoring(blueFlagDriver, now, previousBlueFlagMonitoring)]
-      : [];
-    raceStatus.vscDeltaMonitorings = vscDriver
-      ? [this.createVscDeltaMonitoring(vscDriver, now, previousVscDeltaMonitoring)]
-      : [];
+    if (!monitoring) {
+      this.showError('There is no active blue flag monitoring for selected driver.');
+      return;
+    }
 
-    this.loading = true;
-    this.raceControlService.replaceRaceState(raceStatus).subscribe({
-      next: () => {
-        this.raceControlService.evaluateCep().subscribe({
-          next: (updatedState) => this.setRaceState(updatedState),
-          error: () => this.showError('CEP evaluation failed.'),
-        });
-      },
-      error: () => this.showError('CEP facts could not be saved.'),
-    });
+    monitoring.passedFasterCar = true;
+    this.saveStateThenEvaluateCep(raceStatus, 'Blue flag pass confirmation could not be saved.');
+  }
+
+  protected evaluateBlueFlagCep(): void {
+    this.evaluateCepOnly('Blue flag CEP evaluation failed.');
+  }
+
+  protected setVscDeltaStatus(driverCode: string | undefined, deltaStatus: 'RED' | 'GREEN'): void {
+    if (!driverCode) {
+      this.showError('Selected VSC delta driver does not exist.');
+      return;
+    }
+
+    const raceStatus = this.cloneState();
+    const monitoring = (raceStatus.vscDeltaMonitorings ?? []).find(
+      (item) => item.driver?.code === driverCode && item.active
+    );
+
+    if (!monitoring) {
+      this.showError('Start VSC delta monitoring before changing driver delta status.');
+      return;
+    }
+
+    const now = raceStatus.simulationTime ?? new Date().toISOString();
+    if (deltaStatus === 'RED') {
+      if (monitoring.deltaStatus !== 'RED' || !monitoring.deltaRedSince) {
+        monitoring.deltaRedSince = now;
+      }
+      monitoring.deltaStatus = 'RED';
+    } else {
+      monitoring.deltaStatus = 'GREEN';
+      monitoring.deltaRedSince = null;
+    }
+
+    this.startClock();
+    this.saveStateThenEvaluateCep(raceStatus, 'VSC delta status could not be saved.');
+  }
+
+  protected evaluateCep(): void {
+    this.evaluateCepOnly('CEP evaluation failed.');
   }
 
   protected sectorClass(status: string): string {
@@ -449,6 +571,30 @@ export class RaceControlPage implements OnInit {
     return this.isSafetyCarViolation && this.safetyCarStatus !== 'SAFETY_CAR';
   }
 
+  protected get isSingleYellowViolation(): boolean {
+    return this.violationForm.violationType === 'OVERTAKING_YELLOW'
+      || this.violationForm.violationType === 'DID_NOT_SLOW_YELLOW';
+  }
+
+  protected get isDoubleYellowViolation(): boolean {
+    return this.violationForm.violationType === 'OVERTAKING_DOUBLE_YELLOW'
+      || this.violationForm.violationType === 'DID_NOT_SLOW_DOUBLE_YELLOW';
+  }
+
+  protected get selectedViolationSectorFlag(): string {
+    return this.raceStatus
+      ? this.findSector(this.raceStatus, this.violationForm.sectorNumber)?.activeFlag ?? 'GREEN'
+      : 'GREEN';
+  }
+
+  protected get showSingleYellowHint(): boolean {
+    return this.isSingleYellowViolation && this.selectedViolationSectorFlag !== 'YELLOW';
+  }
+
+  protected get showDoubleYellowHint(): boolean {
+    return this.isDoubleYellowViolation && this.selectedViolationSectorFlag !== 'DOUBLE_YELLOW';
+  }
+
   protected get incidentUsesLocation(): boolean {
     return this.incidentForm.type !== 'WEATHER';
   }
@@ -459,15 +605,23 @@ export class RaceControlPage implements OnInit {
       && this.incidentForm.type !== 'FLUID_LEAK';
   }
 
-  private setRaceState(raceStatus: RaceStatus): void {
+  private setRaceState(raceStatus: RaceStatus, preservePendingDecision = false): void {
+    const pendingDecision = preservePendingDecision && this.currentDecision && !this.currentDecision.applied
+      ? this.currentDecision
+      : undefined;
+
     this.loading = false;
     this.errorMessage = '';
-    this.raceStatus = raceStatus;
-    this.currentDecision = raceStatus.currentDecision ?? undefined;
+    this.raceStatus = pendingDecision
+      ? { ...raceStatus, currentDecision: pendingDecision }
+      : raceStatus;
+    this.currentDecision = pendingDecision ?? raceStatus.currentDecision ?? undefined;
     this.syncFormsWithState(raceStatus);
+    this.syncVscDeltaMonitoringWithSession(raceStatus);
   }
 
   private replaceStateThenEvaluate(raceStatus: RaceStatus): void {
+    this.stateMutationVersion++;
     this.loading = true;
     this.raceControlService.replaceRaceState(raceStatus).subscribe({
       next: (savedState) => {
@@ -518,28 +672,29 @@ export class RaceControlPage implements OnInit {
     now: string,
     previous?: BlueFlagMonitoring
   ): BlueFlagMonitoring {
-    const keepExistingStart = previous?.active && this.blueFlagForm.active && previous.driver?.code === driver.code;
     return {
       driver,
-      blueFlagShownAt: keepExistingStart ? previous?.blueFlagShownAt ?? now : now,
-      warningCount: Number(this.blueFlagForm.warningCount),
-      passedFasterCar: this.blueFlagForm.passedFasterCar,
-      active: this.blueFlagForm.active,
+      blueFlagShownAt: now,
+      warningCount: previous?.active ? previous?.warningCount ?? 0 : 0,
+      passedFasterCar: false,
+      active: true,
     };
   }
 
   private createVscDeltaMonitoring(
     driver: Driver,
     now: string,
+    deltaStatus: 'RED' | 'GREEN',
     previous?: VscDeltaMonitoring
   ): VscDeltaMonitoring {
-    const isRed = this.vscDeltaForm.deltaStatus === 'RED';
+    const isRed = deltaStatus === 'RED';
+    const keepExistingStart = !!previous?.active && previous.driver?.code === driver.code;
     return {
       driver,
-      vscActivatedAt: previous?.vscActivatedAt ?? now,
-      deltaStatus: this.vscDeltaForm.deltaStatus,
-      deltaRedSince: isRed ? previous?.deltaRedSince ?? now : null,
-      active: this.vscDeltaForm.active,
+      vscActivatedAt: keepExistingStart ? previous?.vscActivatedAt ?? now : now,
+      deltaStatus,
+      deltaRedSince: isRed ? (keepExistingStart && previous?.deltaStatus === 'RED' ? previous?.deltaRedSince ?? now : now) : null,
+      active: true,
     };
   }
 
@@ -549,20 +704,10 @@ export class RaceControlPage implements OnInit {
       this.violationForm.driverCode = firstDriver.code ?? this.violationForm.driverCode;
     }
 
-    const activeBlueFlag = raceStatus.blueFlagMonitorings?.find((monitoring) => monitoring.active);
-    if (activeBlueFlag?.driver?.code) {
-      this.blueFlagForm.driverCode = activeBlueFlag.driver.code;
-      this.blueFlagForm.active = !!activeBlueFlag.active;
-      this.blueFlagForm.passedFasterCar = !!activeBlueFlag.passedFasterCar;
-      this.blueFlagForm.warningCount = activeBlueFlag.warningCount ?? 0;
+    if (firstDriver && !this.findDriver(this.blueFlagForm.driverCode, raceStatus)) {
+      this.blueFlagForm.driverCode = firstDriver.code ?? this.blueFlagForm.driverCode;
     }
 
-    const activeDelta = raceStatus.vscDeltaMonitorings?.find((monitoring) => monitoring.active);
-    if (activeDelta?.driver?.code) {
-      this.vscDeltaForm.driverCode = activeDelta.driver.code;
-      this.vscDeltaForm.deltaStatus = activeDelta.deltaStatus ?? 'GREEN';
-      this.vscDeltaForm.active = !!activeDelta.active;
-    }
   }
 
   private cloneState(): RaceStatus {
@@ -577,23 +722,25 @@ export class RaceControlPage implements OnInit {
     return raceStatus?.drivers?.find((driver) => driver.code === code);
   }
 
-  private resetSector(sector: TrackSector): void {
+  private resetSector(sector: TrackSector, raceStatus?: RaceStatus): void {
     sector.blocked = false;
     sector.partiallyBlocked = false;
     sector.hasDebris = false;
     sector.hasStoppedVehicle = false;
     sector.marshalsOnTrack = false;
     sector.medicalTeamOnTrack = false;
-    sector.activeFlag = 'GREEN';
+    if (!raceStatus || this.canShowRecoveredSectorGreen(raceStatus)) {
+      sector.activeFlag = 'GREEN';
+    }
   }
 
-  private clearedSectorCopy(sector: TrackSector): TrackSector {
+  private clearedSectorCopy(sector: TrackSector, raceStatus?: RaceStatus): TrackSector {
     const clearedSector = { ...sector };
-    this.resetSector(clearedSector);
+    this.resetSector(clearedSector, raceStatus);
     return clearedSector;
   }
 
-  private applyRecoveryToSector(sector: TrackSector): void {
+  private applyRecoveryToSector(sector: TrackSector, raceStatus: RaceStatus): void {
     if (this.recoveryForm.blocked) {
       sector.blocked = false;
     }
@@ -617,9 +764,14 @@ export class RaceControlPage implements OnInit {
       || !!sector.medicalTeamOnTrack
     );
 
-    if (this.isSectorClear(sector)) {
+    if (this.isSectorClear(sector) && this.canShowRecoveredSectorGreen(raceStatus)) {
       sector.activeFlag = 'GREEN';
     }
+  }
+
+  private canShowRecoveredSectorGreen(raceStatus: RaceStatus): boolean {
+    return raceStatus.status === 'GREEN_FLAG'
+      || raceStatus.currentDecision?.recommendedFlag === 'GREEN';
   }
 
   private isSectorClear(sector: TrackSector): boolean {
@@ -642,14 +794,6 @@ export class RaceControlPage implements OnInit {
       return;
     }
     raceStatus.trackStatus = 'SAFE';
-  }
-
-  private markClearSectorsGreen(raceStatus: RaceStatus): void {
-    for (const sector of raceStatus.sectors ?? []) {
-      if (this.isSectorClear(sector)) {
-        sector.activeFlag = 'GREEN';
-      }
-    }
   }
 
   private sectorNote(sector: TrackSector): string {
@@ -701,6 +845,29 @@ export class RaceControlPage implements OnInit {
     return groupedPenalties.length ? groupedPenalties.join(' + ') : '-';
   }
 
+  private activeBlueFlagWarnings(driverCode?: string): number {
+    if (!driverCode) {
+      return 0;
+    }
+
+    return this.activeBlueFlagMonitorings
+      .filter((monitoring) => monitoring.driver?.code === driverCode)
+      .reduce((total, monitoring) => total + (monitoring.warningCount ?? 0), 0);
+  }
+
+  protected vscDeltaElapsedSeconds(monitoring: VscDeltaMonitoring): number {
+    if (monitoring.deltaStatus !== 'RED' || !monitoring.deltaRedSince || !this.raceStatus?.simulationTime) {
+      return 0;
+    }
+
+    const startedAt = new Date(monitoring.deltaRedSince).getTime();
+    const now = new Date(this.raceStatus.simulationTime).getTime();
+    if (Number.isNaN(startedAt) || Number.isNaN(now) || now < startedAt) {
+      return 0;
+    }
+    return Math.floor((now - startedAt) / 1000);
+  }
+
   private formatEnumLabel(value?: string): string {
     if (!value || value === '-') {
       return '-';
@@ -741,8 +908,106 @@ export class RaceControlPage implements OnInit {
     return date.toLocaleTimeString('en-GB', { hour12: false });
   }
 
+  private advanceLocalClock(seconds: number): void {
+    if (!this.raceStatus?.simulationTime) {
+      return;
+    }
+
+    const currentTime = new Date(this.raceStatus.simulationTime);
+    if (Number.isNaN(currentTime.getTime())) {
+      return;
+    }
+
+    this.raceStatus = {
+      ...this.raceStatus,
+      simulationTime: new Date(currentTime.getTime() + seconds * 1000).toISOString(),
+    };
+  }
+
   private showError(message: string): void {
     this.loading = false;
     this.errorMessage = message;
+  }
+
+  private evaluateCepOnly(errorMessage: string): void {
+    this.stateMutationVersion++;
+    this.loading = true;
+    this.raceControlService.evaluateCep().subscribe({
+      next: (updatedState) => this.setRaceState(updatedState),
+      error: () => this.showError(errorMessage),
+    });
+  }
+
+  private saveStateThenEvaluateCep(raceStatus: RaceStatus, errorMessage: string): void {
+    this.stateMutationVersion++;
+    this.loading = true;
+    this.raceControlService.replaceRaceState(raceStatus).subscribe({
+      next: () => this.evaluateCepOnly(errorMessage),
+      error: () => this.showError(errorMessage),
+    });
+  }
+
+  private syncVscDeltaMonitoringWithSession(raceStatus: RaceStatus): void {
+    if (this.vscDeltaSyncInFlight) {
+      return;
+    }
+
+    const monitorings = raceStatus.vscDeltaMonitorings ?? [];
+    const hasActiveMonitoring = monitorings.some((monitoring) => monitoring.active);
+    const shouldMonitor = raceStatus.status === 'VSC';
+
+    if (shouldMonitor && !hasActiveMonitoring && raceStatus.drivers?.length) {
+      const now = raceStatus.simulationTime ?? new Date().toISOString();
+      const syncedState = structuredClone(raceStatus);
+      syncedState.vscDeltaMonitorings = (syncedState.drivers ?? []).map((driver) =>
+        this.createVscDeltaMonitoring(driver, now, 'GREEN')
+      );
+      this.startClock();
+      this.persistVscDeltaSync(syncedState);
+      return;
+    }
+
+    if (!shouldMonitor && hasActiveMonitoring) {
+      const syncedState = structuredClone(raceStatus);
+      syncedState.vscDeltaMonitorings = (syncedState.vscDeltaMonitorings ?? []).map((monitoring) => ({
+        ...monitoring,
+        deltaStatus: 'GREEN',
+        deltaRedSince: null,
+        active: false,
+      }));
+      this.persistVscDeltaSync(syncedState);
+    }
+  }
+
+  private persistVscDeltaSync(raceStatus: RaceStatus): void {
+    this.vscDeltaSyncInFlight = true;
+    this.raceControlService.replaceRaceState(raceStatus).subscribe({
+      next: (savedState) => {
+        this.vscDeltaSyncInFlight = false;
+        this.raceStatus = savedState;
+        this.currentDecision = savedState.currentDecision ?? undefined;
+      },
+      error: () => {
+        this.vscDeltaSyncInFlight = false;
+        this.showError('VSC delta monitoring could not be synchronized.');
+      },
+    });
+  }
+
+  private startClock(): void {
+    if (this.clockRunning) {
+      return;
+    }
+
+    this.clockRunning = true;
+    this.clockTimer = setInterval(() => this.advanceClock(1, false), 1000);
+  }
+
+  private stopClock(): void {
+    if (this.clockTimer) {
+      clearInterval(this.clockTimer);
+      this.clockTimer = undefined;
+    }
+    this.clockRunning = false;
   }
 }
